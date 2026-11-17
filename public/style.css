@@ -1127,29 +1127,40 @@ body {
 
 }
 
-/* PERBAIKAN ANIMASI AI TYPING */
-.typing {
+/* FIX AI TYPING - PAKSA 3 TITIK SEJAJAR */
+
+.pesan-wrapper.bot-wrapper.typing {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+
+    width: fit-content !important;
+    min-width: 80px !important;
+    max-width: none !important;
+}
+
+.pesan-wrapper.bot-wrapper.typing .pesan {
     display: inline-flex !important;
     flex-direction: row !important;
     flex-wrap: nowrap !important;
     align-items: center !important;
     justify-content: center !important;
 
-    width: 72px !important;
-    min-width: 72px !important;
-    height: 36px;
+    width: 80px !important;
+    min-width: 80px !important;
+    height: 42px !important;
 
     gap: 5px !important;
+    padding: 10px 14px !important;
     white-space: nowrap !important;
-    box-sizing: border-box;
-    overflow: hidden;
 }
 
-.typing span {
+.pesan-wrapper.bot-wrapper.typing span {
     display: block !important;
     flex: 0 0 7px !important;
 
     width: 7px !important;
     min-width: 7px !important;
-    height: 7px;
+    height: 7px !important;
 }
