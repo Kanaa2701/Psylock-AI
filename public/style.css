@@ -1126,3 +1126,30 @@ body {
     }
 
 }
+
+/* PERBAIKAN ANIMASI AI TYPING */
+.typing {
+    display: inline-flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    width: 72px !important;
+    min-width: 72px !important;
+    height: 36px;
+
+    gap: 5px !important;
+    white-space: nowrap !important;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.typing span {
+    display: block !important;
+    flex: 0 0 7px !important;
+
+    width: 7px !important;
+    min-width: 7px !important;
+    height: 7px;
+}
