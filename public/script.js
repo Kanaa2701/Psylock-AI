@@ -1,11 +1,9 @@
-// --- ELEMEN UTAMA & STATE ---
 const chatBox   = document.getElementById("konten");
 const prompt    = document.getElementById("teks");
 const btnKirim  = document.getElementById("kirim");
 const btnUpload = document.getElementById("btnUpload");
 const fileInput = document.getElementById("fileInput");
 
-// --- VARIABEL & ELEMEN SIDEBAR ---
 const sidebar              = document.getElementById('sidebar');
 const btnOpenSidebar       = document.getElementById('btnOpenSidebar');
 const btnCloseSidebar      = document.getElementById('btnCloseSidebar');
@@ -19,7 +17,6 @@ const sidebarHistory       = document.getElementById('sidebarHistory');
 const btnNewChat           = document.getElementById('btnNewChat');
 const btnCollection        = document.getElementById('btnCollection');
 
-// --- ELEMEN MODAL PENCARIAN ---
 const searchModalOverlay   = document.getElementById('searchModalOverlay');
 const modalSearchInput     = document.getElementById('modalSearchInput');
 const btnClearSearch       = document.getElementById('btnClearSearch');
@@ -27,11 +24,9 @@ const btnCloseSearchModal  = document.getElementById('btnCloseSearchModal');
 const searchResultsList    = document.getElementById('searchResultsList');
 const searchSectionTitle   = document.getElementById('searchSectionTitle');
 
-// --- ELEMEN AUTO-SCROLL ---
 const btnScrollBottom      = document.getElementById("btnScrollBottom");
 let userIsScrollingUp      = false;
 
-// Pantau pergerakan scroll di dalam chatBox
 chatBox.addEventListener("scroll", () => {
     const threshold = 100;
     const distanceFromBottom = chatBox.scrollHeight - chatBox.scrollTop - chatBox.clientHeight;
@@ -53,7 +48,6 @@ if (btnScrollBottom) {
     });
 }
 
-// --- MANAJEMEN SESI & RIWAYAT PERCAKAPAN ---
 const defaultGreeting = "Halo, aku Psylock<br>Ada yang bisa aku bantu?";
 
 let chatSessions = JSON.parse(localStorage.getItem('psylock_sessions')) || [
@@ -76,7 +70,6 @@ function saveSessions() {
     localStorage.setItem('psylock_current_session', currentSessionId);
 }
 
-// Buka/Tutup Sidebar
 if (btnOpenSidebar) {
     btnOpenSidebar.addEventListener('click', () => { sidebar.classList.remove('closed'); });
 }
@@ -93,7 +86,6 @@ if (btnCollectionMini) {
     btnCollectionMini.addEventListener('click', () => { if (btnCollection) btnCollection.click(); });
 }
 
-// --- LOGIKA MODAL PENCARIAN ---
 if (btnToggleSearch) {
     btnToggleSearch.addEventListener('click', () => {
         if (sidebar.classList.contains('closed')) sidebar.classList.remove('closed');
@@ -205,7 +197,6 @@ function renderModalSearchResults(filterText = '') {
     });
 }
 
-// Fitur Tombol "Koleksi"
 function openCollection() {
     let allFiles = [];
     chatSessions.forEach(session => {
@@ -235,7 +226,6 @@ if (btnCollection) {
     btnCollection.addEventListener('click', openCollection);
 }
 
-// Render Daftar Riwayat di Sidebar
 function renderHistory(filterText = '') {
     if (!sidebarHistory) return;
     sidebarHistory.innerHTML = '';
@@ -424,7 +414,6 @@ function appendMessageToSession(pengirim, content) {
     }
 }
 
-// Fungsi render pesan ke DOM (Tombol salin hanya muncul jika pesan bot mengandung kode)
 function displayMessageToDOM(pengirim, chat, saveToSession = true) {
     let containerEl;
 
@@ -432,7 +421,6 @@ function displayMessageToDOM(pengirim, chat, saveToSession = true) {
         containerEl = document.createElement("div");
         containerEl.classList.add("pesan-wrapper", "bot-wrapper");
 
-        // Avatar AI
         const avatar = document.createElement("img");
         avatar.src = "avatar.jpeg";
         avatar.className = "ai-avatar";
@@ -453,7 +441,6 @@ function displayMessageToDOM(pengirim, chat, saveToSession = true) {
             div.innerText = chat;
         }
 
-        // Periksa apakah balasan bot mengandung kode (<pre>, <code>, atau ```)
         const hasCodeBlock = chat.includes("<pre>") || chat.includes("<code>") || chat.includes("```") || div.querySelector("pre");
 
         if (hasCodeBlock && !chat.includes("<span></span>")) {
@@ -481,7 +468,6 @@ function displayMessageToDOM(pengirim, chat, saveToSession = true) {
             div.appendChild(copyBtn);
         }
 
-        // Tombol salin khusus per blok kode di dalam pesan
         setTimeout(() => {
             const codeBlocks = div.querySelectorAll("pre");
             codeBlocks.forEach((preBlock) => {
@@ -510,7 +496,6 @@ function displayMessageToDOM(pengirim, chat, saveToSession = true) {
         chatBox.appendChild(containerEl);
 
     } else {
-        // Pesan User (Tanpa avatar, posisi di kanan)
         containerEl = document.createElement("div");
         containerEl.classList.add("pesan-wrapper", "user-wrapper");
 
@@ -664,7 +649,6 @@ async function getAiResponse(chatText, fileData) {
     }
 }
 
-// --- OTOMATIS MEMBESAR KE ATAS SAAT MENGETIK ---
 prompt.addEventListener("input", function() {
     this.style.height = "auto";
     this.style.height = (this.scrollHeight) + "px";

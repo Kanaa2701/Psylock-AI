@@ -14,7 +14,6 @@ body {
   overflow: hidden;
 }
 
-/* --- LAYOUT UTAMA FULLSCREEN DENGAN SIDEBAR --- */
 .app-layout {
   display: flex;
   width: 100vw;
@@ -24,7 +23,6 @@ body {
   position: relative;
 }
 
-/* SIDEBAR KIRI (Warna krem agak putih) */
 .sidebar {
   width: 280px;
   height: 100%;
@@ -38,7 +36,6 @@ body {
   overflow: hidden;
 }
 
-/* Kondisi Sidebar Tertutup */
 .sidebar.closed {
   width: 64px;
 }
@@ -83,7 +80,6 @@ body {
   background: #f0ece4;
 }
 
-/* Header Sidebar */
 .sidebar-header-gemini {
   padding: 16px;
   display: flex;
@@ -121,7 +117,6 @@ body {
   background: rgba(0, 0, 0, 0.05);
 }
 
-/* Menu Atas Sidebar */
 .sidebar-top-menus {
   padding: 0 12px 12px 12px;
   display: flex;
@@ -157,7 +152,6 @@ body {
   font-weight: 600;
 }
 
-/* Label Bagian Semua */
 .sidebar-history-label {
   padding: 8px 20px 4px 20px;
   font-size: 13px;
@@ -166,7 +160,6 @@ body {
   background: #faf8f5;
 }
 
-/* Kolom Telusuri Percakapan */
 .sidebar-search {
   padding: 0 16px 12px 16px;
   background: #faf8f5;
@@ -188,7 +181,6 @@ body {
   border-color: #3b82f6;
 }
 
-/* Daftar Riwayat Chat */
 .sidebar-history {
   flex: 1;
   overflow-y: auto;
@@ -199,7 +191,6 @@ body {
   background: #faf8f5;
 }
 
-/* CONTAINER UTAMA CHAT */
 .container {
   flex: 1;
   height: 100vh;
@@ -213,7 +204,6 @@ body {
   box-shadow: none;
 }
 
-/* KONTEN CHAT */
 .konten {
   flex: 1;
   overflow-y: auto;
@@ -232,7 +222,6 @@ body {
   word-wrap: break-word;
 }
 
-/* BUBBLE CHAT USER (Sudut kanan atas sedikit lancip, melebar natural) */
 .user {
   background: #a8b1ba; 
   color: #0f172a;
@@ -250,7 +239,6 @@ body {
   display: block;
 }
 
-/* BUBBLE CHAT AI / BOT (Default tanpa tombol salin) */
 .bot {
   align-self: flex-start;
   background: #181414; 
@@ -264,12 +252,10 @@ body {
   max-width: 80%;
 }
 
-/* Jika bubble bot memuat tombol salin (mengandung kode), beri ruang di atas */
 .bot.has-copy-btn {
   padding-top: 32px;
 }
 
-/* --- TOMBOL SALIN PESAN (KANAN ATAS ALA GEMINI) --- */
 .btn-copy-msg {
   position: absolute;
   top: 8px;
@@ -291,7 +277,6 @@ body {
   background: rgba(255, 255, 255, 0.1);
 }
 
-/* --- STYLE AVATAR / PROFIL MASKOT AI (MENEMPEL DI POJOK KIRI ATAS BUBBLE) --- */
 .pesan-wrapper {
   display: flex;
   flex-direction: column;
@@ -302,7 +287,7 @@ body {
 
 .pesan-wrapper.bot-wrapper {
   position: relative;
-  margin-left: 32px; /* Memberikan ruang untuk avatar di sebelah kiri */
+  margin-left: 32px; 
   align-self: flex-start;
 }
 
@@ -313,8 +298,8 @@ body {
 
 .ai-avatar {
   position: absolute;
-  left: -32px; /* Menempatkan avatar di luar sisi kiri bubble */
-  top: 0;      /* Sejajar tepat di bagian atas bubble */
+  left: -32px; 
+  top: 0;      
   width: 26px;
   height: 26px;
   border-radius: 50%;
@@ -323,7 +308,6 @@ body {
   background: #ffffff;
   z-index: 2;
 }
-/* -------------------------------------------------------------------------- */
 
 .pesan img {
   max-width: 100%;
@@ -384,7 +368,6 @@ body {
   word-break: break-word;
 }
 
-/* Tombol Kirim */
 .kirim {
   width: 36px;
   height: 36px;
@@ -558,7 +541,6 @@ body {
   text-align: left;
 }
 
-/* Tombol Hapus dengan Efek Latar Belakang & Paksaan Warna Merah SVG saat di-hover */
 .btn-delete-history {
   background: transparent;
   border: none;
@@ -591,7 +573,6 @@ body {
   color: #ef4444 !important;
 }
 
-/* --- MODAL PENCARIAN --- */
 .search-modal-overlay {
   position: fixed;
   top: 0;
@@ -723,10 +704,6 @@ body {
 }
 
 
-/* =========================================
-   RESPONSIVE TABLET
-========================================= */
-
 @media screen and (max-width: 768px) {
 
     .app-layout {
@@ -737,7 +714,6 @@ body {
         overflow: hidden;
     }
 
-    /* SIDEBAR */
     .sidebar {
         width: 280px;
         max-width: 85vw;
@@ -765,7 +741,6 @@ body {
         gap: 10px;
     }
 
-    /* AREA CHAT */
     .container {
         width: 100%;
         min-width: 0;
@@ -779,7 +754,6 @@ body {
         min-width: 0;
     }
 
-    /* BUBBLE CHAT */
     .pesan {
         max-width: 100%;
         font-size: 14px;
@@ -809,7 +783,6 @@ body {
         left: -30px;
     }
 
-    /* INPUT PESAN */
     .prompt {
         margin: 10px 12px 14px;
         padding: 8px 10px;
@@ -842,7 +815,6 @@ body {
         flex-shrink: 0;
     }
 
-    /* MODAL PENCARIAN */
     .search-modal-overlay {
         padding: 12px;
         padding-top: 8vh;
@@ -870,21 +842,14 @@ body {
         gap: 10px;
     }
 
-    /* SCROLLBAR */
     ::-webkit-scrollbar {
         width: 4px;
     }
 }
 
 
-/* =========================================
-   RESPONSIVE MOBILE
-   MAX WIDTH 480px
-========================================= */
-
 @media screen and (max-width: 480px) {
 
-    /* LAYOUT */
     .app-layout {
         width: 100%;
         height: 100vh;
@@ -896,7 +861,6 @@ body {
         width: 100%;
     }
 
-    /* SIDEBAR */
     .sidebar {
         width: 260px;
         max-width: 85vw;
@@ -936,13 +900,11 @@ body {
         padding: 0 8px 12px;
     }
 
-    /* AREA CHAT */
     .konten {
         padding: 12px 10px;
         gap: 12px;
     }
 
-    /* BUBBLE CHAT */
     .pesan {
         font-size: 14px;
         line-height: 1.6;
@@ -972,7 +934,6 @@ body {
         left: -27px;
     }
 
-    /* KODE PROGRAM DALAM CHAT */
     .pesan.bot pre {
         max-width: 100%;
         overflow-x: auto;
@@ -990,7 +951,6 @@ body {
         height: auto;
     }
 
-    /* PROMPT INPUT */
     .prompt {
         margin: 8px 8px 10px;
         padding: 7px 8px;
@@ -1026,14 +986,12 @@ body {
         height: 16px;
     }
 
-    /* TOMBOL SCROLL BOTTOM */
     #btnScrollBottom {
         bottom: 75px !important;
         width: 36px !important;
         height: 36px !important;
     }
 
-    /* MODAL PENCARIAN */
     .search-modal-overlay {
         padding: 10px;
         padding-top: 6vh;
@@ -1076,7 +1034,6 @@ body {
         font-size: 13px;
     }
 
-    /* MODAL HAPUS CHAT */
     #deleteModalOverlay > div {
         width: calc(100% - 40px) !important;
         max-width: 320px;
@@ -1085,11 +1042,6 @@ body {
 
 }
 
-
-/* =========================================
-   MOBILE EXTRA SMALL
-   MAX WIDTH 360px
-========================================= */
 
 @media screen and (max-width: 360px) {
 
@@ -1126,8 +1078,6 @@ body {
     }
 
 }
-
-/* FIX AI TYPING - PAKSA 3 TITIK SEJAJAR */
 
 .pesan-wrapper.bot-wrapper.typing {
     display: flex !important;
