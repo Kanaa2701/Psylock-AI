@@ -234,7 +234,7 @@ function openCollection() {
     chatSessions.forEach(session => {
         if (session.messages) {
             session.messages.forEach(msg => {
-                if (msg.content.includes("Mengirim file") || msg.content.includes("<img")) {
+                if (msg.content.includes("Mengirim file") || msg.content.includes("user-file-badge") || msg.content.includes("<img")) {
                     allFiles.push(`<div class="pesan ${msg.pengirim}">Sesi: <b>${session.title}</b><br>${msg.content}</div>`);
                 }
             });
@@ -447,7 +447,8 @@ function appendMessageToSession(pengirim, content) {
         session.messages.push({ pengirim, content });
 
         if (pengirim === 'user' && session.title === 'Percakapan baru') {
-            session.title = content.replace(/<[^>]*>?/gm, '').substring(0, 30) + (content.length > 30 ? '...' : '');
+            const plainTitle = content.replace(/<[^>]*>?/gm, '').trim() || 'Gambar/File';
+            session.title = plainTitle.substring(0, 30) + (plainTitle.length > 30 ? '...' : '');
         }
         saveSessions();
         renderHistory();
@@ -540,7 +541,7 @@ function displayMessageToDOM(pengirim, chat, saveToSession = true) {
 
         const div = document.createElement("div");
         div.classList.add("pesan", pengirim);
-        div.innerText = chat;
+        div.innerHTML = chat;
 
         containerEl.appendChild(div);
         chatBox.appendChild(containerEl);
@@ -572,8 +573,10 @@ fileInput.onchange = (e) => {
     if (file) {
         const reader = new FileReader();
         reader.onload = function(uploadEvent) {
+            const fullDataUrl = uploadEvent.target.result;
             attachedFile = {
-                data: uploadEvent.target.result.split(',')[1],
+                data: fullDataUrl.split(',')[1],
+                previewUrl: fullDataUrl,
                 mimeType: file.type,
                 name: file.name
             };
@@ -716,7 +719,13 @@ btnKirim.onclick = () => {
     const chat = prompt.value.trim();
     if (chat || attachedFile) {
         let tampilanUser = chat;
-        if (attachedFile) tampilanUser = `[Mengirim file: ${attachedFile.name}]<br>${chat}`;
+        if (attachedFile) {
+            if (attachedFile.mimeType && attachedFile.mimeType.startsWith("image/") && attachedFile.previewUrl) {
+                tampilanUser = `<img src="${attachedFile.previewUrl}" class="user-attached-img" alt="${attachedFile.name}">${chat ? `<div class="user-prompt-text">${chat}</div>` : ""}`;
+            } else {
+                tampilanUser = `<div class="user-file-badge">📎 ${attachedFile.name}</div>${chat ? `<div class="user-prompt-text">${chat}</div>` : ""}`;
+            }
+        }
         newChat("user", tampilanUser);
         
         prompt.value = '';

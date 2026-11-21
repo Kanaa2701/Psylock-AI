@@ -251,6 +251,26 @@ body {
   display: block;
 }
 
+.user-attached-img {
+  max-width: 240px;
+  max-height: 220px;
+  width: auto;
+  height: auto;
+  border-radius: 12px;
+  display: block;
+  object-fit: cover;
+}
+
+.user-prompt-text {
+  margin-top: 8px;
+}
+
+.user-file-badge {
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
 .bot {
   align-self: flex-start;
   background: #181414; 
@@ -326,6 +346,10 @@ body {
   border-radius: 8px;
   margin-top: 8px;
   display: block;
+}
+
+.pesan img.user-attached-img {
+  margin-top: 0;
 }
 
 .prompt {
@@ -775,6 +799,11 @@ body {
         max-width: 100%;
         font-size: 14px;
         padding: 12px 14px;
+    }
+
+    .user-attached-img {
+        max-width: 200px;
+        max-height: 190px;
     }
 
     .bot {
