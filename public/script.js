@@ -344,7 +344,7 @@ function renderHistory(filterText = '') {
         });
 
         const actionContainer = document.createElement('div');
-        actionContainer.style.cssText = "display: flex; align-items: center; gap: 4px;";
+        actionContainer.style.cssText = "display: flex; align-items: center; gap: 2px; flex-shrink: 0;";
 
         const pinBtn = document.createElement('button');
         pinBtn.className = 'btn-pin-history';

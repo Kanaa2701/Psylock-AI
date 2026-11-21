@@ -578,6 +578,12 @@ body {
   font-weight: 600;
 }
 
+.history-item:focus,
+.history-item-wrapper:focus-within:not(.active) {
+  outline: none;
+  background: transparent;
+}
+
 .history-item {
   flex: 1;
   padding: 10px 8px;
@@ -794,6 +800,27 @@ body {
         gap: 10px;
     }
 
+    .history-item-wrapper {
+        justify-content: space-between;
+        gap: 4px;
+    }
+
+    .history-item {
+        flex: 1 1 auto;
+        min-width: 0;
+        padding: 10px 6px;
+    }
+
+    .btn-pin-history,
+    .btn-delete-history {
+        display: inline-flex !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+        flex-shrink: 0;
+        margin-right: 0;
+        padding: 4px;
+    }
+
     .container {
         width: 100%;
         min-width: 0;
@@ -965,6 +992,11 @@ body {
 
     .sidebar-history {
         padding: 0 8px 12px;
+    }
+
+    .btn-pin-history,
+    .btn-delete-history {
+        padding: 3px;
     }
 
     .konten {
