@@ -26,6 +26,36 @@ const searchSectionTitle   = document.getElementById('searchSectionTitle');
 
 const btnScrollBottom      = document.getElementById("btnScrollBottom");
 let userIsScrollingUp      = false;
+let isCollectionView       = false;
+
+let currentAbortController = null;
+let isGeneratingResponse = false;
+
+const sendIconSvg = `
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="12" y1="19" x2="12" y2="5"></line>
+        <polyline points="5 12 12 5 19 12"></polyline>
+    </svg>
+`;
+
+const stopIconSvg = `
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+        <rect x="5" y="5" width="14" height="14" rx="2.5"></rect>
+    </svg>
+`;
+
+function setGeneratingState(generating) {
+    isGeneratingResponse = generating;
+    if (!btnKirim) return;
+
+    if (generating) {
+        btnKirim.innerHTML = stopIconSvg;
+        btnKirim.title = "Hentikan respons";
+    } else {
+        btnKirim.innerHTML = sendIconSvg;
+        btnKirim.title = "kirim";
+    }
+}
 
 function isMobileView() {
     return window.innerWidth <= 768;
@@ -230,6 +260,11 @@ function renderModalSearchResults(filterText = '') {
 }
 
 function openCollection() {
+    isCollectionView = true;
+    document.querySelectorAll('.history-item-wrapper.active').forEach(el => {
+        el.classList.remove('active');
+    });
+
     let allFiles = [];
     chatSessions.forEach(session => {
         if (session.messages) {
@@ -277,7 +312,8 @@ function renderHistory(filterText = '') {
 
     filtered.forEach(session => {
         const wrapper = document.createElement('div');
-        wrapper.className = `history-item-wrapper ${session.id == currentSessionId ? 'active' : ''}`;
+        const isSessionActive = !isCollectionView && session.id == currentSessionId;
+        wrapper.className = `history-item-wrapper ${isSessionActive ? 'active' : ''}`;
 
         const item = document.createElement('button');
         item.className = 'history-item';
@@ -325,7 +361,7 @@ function renderHistory(filterText = '') {
     });
 
     const currentS = chatSessions.find(s => s.id == currentSessionId);
-    if (currentS && currentS.messages.length <= 1 && btnNewChat) {
+    if (!isCollectionView && currentS && currentS.messages.length <= 1 && btnNewChat) {
         btnNewChat.classList.add('active');
         if (btnCollection) btnCollection.classList.remove('active');
     } else if (btnNewChat) {
@@ -395,6 +431,7 @@ if (searchChatInput) {
 
 if (btnNewChat) {
     btnNewChat.addEventListener('click', () => {
+        isCollectionView = false;
         const newSession = {
             id: Date.now(),
             title: 'Percakapan baru',
@@ -416,6 +453,7 @@ if (btnNewChat) {
 }
 
 function switchSession(id) {
+    isCollectionView = false;
     currentSessionId = id;
     const session = chatSessions.find(s => s.id == id);
     if (session) {
@@ -604,7 +642,8 @@ async function kirimGambar(promptGambar) {
         const response = await fetch("/api/image-prompt", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ promptGambar })
+            body: JSON.stringify({ promptGambar }),
+            signal: currentAbortController ? currentAbortController.signal : undefined
         });
         const hasil = await response.json();
         if (!response.ok) throw new Error(hasil.error || "Gagal membuat prompt gambar");
@@ -631,14 +670,21 @@ async function kirimGambar(promptGambar) {
 
         newChat("bot", balasanGambar);
     } catch (error) {
-        console.error("Gagal meracik gambar:", error);
         waiting.remove();
         let session = chatSessions.find(s => s.id == currentSessionId);
         if (session && session.messages) {
             session.messages = session.messages.filter(m => !m.content.includes("<span></span>"));
             saveSessions();
         }
-        newChat("bot", "Maaf, gagal membuat gambar saat ini.");
+        if (error.name === "AbortError") {
+            newChat("bot", "Respons dihentikan.");
+        } else {
+            console.error("Gagal meracik gambar:", error);
+            newChat("bot", "Maaf, gagal membuat gambar saat ini.");
+        }
+    } finally {
+        currentAbortController = null;
+        setGeneratingState(false);
     }
 }
 
@@ -660,7 +706,8 @@ async function getAiResponse(chatText, fileData) {
         const response = await fetch("/api/chat", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ contents: chatHistory })
+            body: JSON.stringify({ contents: chatHistory }),
+            signal: currentAbortController ? currentAbortController.signal : undefined
         });
         const hasil = await response.json();
         if (!response.ok) throw new Error(hasil.error || "Gemini API request failed");
@@ -682,18 +729,25 @@ async function getAiResponse(chatText, fileData) {
             throw new Error("Invalid response format from API");
         }
     } catch (error) {
-        console.error("Error:", error);
         waiting.remove();
         let session = chatSessions.find(s => s.id == currentSessionId);
         if (session && session.messages) {
             session.messages = session.messages.filter(m => !m.content.includes("<span></span>"));
             saveSessions();
         }
-        newChat("bot", "Error Responding");
         chatHistory.pop();
         let activeS3 = chatSessions.find(s => s.id == currentSessionId);
         if (activeS3) activeS3.history = chatHistory;
+
+        if (error.name === "AbortError") {
+            newChat("bot", "Respons dihentikan.");
+        } else {
+            console.error("Error:", error);
+            newChat("bot", "Error Responding");
+        }
     } finally {
+        currentAbortController = null;
+        setGeneratingState(false);
         prompt.placeholder = "Tuliskan pesan anda..";
         attachedFile = null;
         fileInput.value = "";
@@ -725,6 +779,13 @@ if (window.visualViewport) {
 }
 
 btnKirim.onclick = () => {
+    if (isGeneratingResponse) {
+        if (currentAbortController) {
+            currentAbortController.abort();
+        }
+        return;
+    }
+
     const chat = prompt.value.trim();
     if (chat || attachedFile) {
         let tampilanUser = chat;
@@ -739,6 +800,9 @@ btnKirim.onclick = () => {
         
         prompt.value = '';
         prompt.style.height = "auto";
+
+        currentAbortController = new AbortController();
+        setGeneratingState(true);
 
         const pesanLower = chat.toLowerCase();
         if (!attachedFile && (pesanLower.startsWith("buatkan gambar") || pesanLower.startsWith("tampilkan gambar") || pesanLower.startsWith("gambar "))) {
