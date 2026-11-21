@@ -31,11 +31,32 @@ function isMobileView() {
     return window.innerWidth <= 768;
 }
 
+function closeSidebar() {
+    if (sidebar) sidebar.classList.add('closed');
+    if (sidebarSearchWrapper) sidebarSearchWrapper.style.display = 'none';
+}
+
 function closeSidebarOnMobile() {
     if (isMobileView()) {
-        if (sidebar) sidebar.classList.add('closed');
-        if (sidebarSearchWrapper) sidebarSearchWrapper.style.display = 'none';
+        closeSidebar();
     }
+}
+
+function setPromptVisible(isVisible) {
+    const promptBar = document.querySelector('.prompt');
+    if (promptBar) {
+        promptBar.style.display = isVisible ? 'flex' : 'none';
+    }
+}
+
+// Tutup sidebar saat menekan area sebelah kanan (di luar sidebar)
+const mainContainer = document.querySelector('.container');
+if (mainContainer) {
+    mainContainer.addEventListener('click', () => {
+        if (sidebar && !sidebar.classList.contains('closed')) {
+            closeSidebar();
+        }
+    });
 }
 
 chatBox.addEventListener("scroll", () => {
@@ -86,8 +107,7 @@ if (btnOpenSidebar) {
 }
 if (btnCloseSidebar) {
     btnCloseSidebar.addEventListener('click', () => {
-        sidebar.classList.add('closed');
-        if (sidebarSearchWrapper) sidebarSearchWrapper.style.display = 'none';
+        closeSidebar();
     });
 }
 if (btnNewChatMini) {
@@ -232,6 +252,9 @@ function openCollection() {
     `;
     if (btnNewChat) btnNewChat.classList.remove('active');
     if (btnCollection) btnCollection.classList.add('active');
+
+    setPromptVisible(false);
+    closeSidebarOnMobile();
 }
 
 if (btnCollection) {
@@ -347,6 +370,7 @@ if (btnConfirmDelete) {
             currentSessionId = chatSessions[0].id;
             chatHistory = [];
             chatBox.innerHTML = `<div class="pesan-wrapper bot-wrapper"><img src="avatar.jpeg" class="ai-avatar"><div class="pesan bot">${defaultGreeting}</div></div>`;
+            setPromptVisible(true);
             saveSessions();
             renderHistory();
             sessionToDeleteId = null;
@@ -386,6 +410,7 @@ if (btnNewChat) {
 
         if (btnCollection) btnCollection.classList.remove('active');
         chatBox.innerHTML = `<div class="pesan-wrapper bot-wrapper"><img src="avatar.jpeg" class="ai-avatar"><div class="pesan bot">${defaultGreeting}</div></div>`;
+        setPromptVisible(true);
         closeSidebarOnMobile();
     });
 }
@@ -410,6 +435,7 @@ function switchSession(id) {
         chatBox.scrollTop = chatBox.scrollHeight;
     }
     saveSessions();
+    setPromptVisible(true);
     if (btnCollection) btnCollection.classList.remove('active');
     renderHistory();
 }
@@ -463,7 +489,6 @@ function displayMessageToDOM(pengirim, chat, saveToSession = true) {
             const copyBtn = document.createElement("button");
             copyBtn.className = "btn-copy-msg";
             copyBtn.title = "Salin seluruh pesan";
-            // Ikon SVG dua kotak bertumpuk ala Gemini
             copyBtn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
 
             copyBtn.addEventListener("click", () => {
@@ -676,7 +701,7 @@ btnKirim.onclick = () => {
         newChat("user", tampilanUser);
         
         prompt.value = '';
-        prompt.style.height = "auto"; // Reset tinggi kotak input setelah dikirim
+        prompt.style.height = "auto";
 
         const pesanLower = chat.toLowerCase();
         if (!attachedFile && (pesanLower.startsWith("buatkan gambar") || pesanLower.startsWith("tampilkan gambar") || pesanLower.startsWith("gambar "))) {
