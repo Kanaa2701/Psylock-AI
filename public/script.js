@@ -541,7 +541,16 @@ function displayMessageToDOM(pengirim, chat, saveToSession = true) {
 
         const div = document.createElement("div");
         div.classList.add("pesan", pengirim);
-        div.innerHTML = chat;
+
+        let formattedUserChat = chat;
+        const legacyMatch = chat.match(/^\[Mengirim file:\s*(.+?)\](?:<br>)?([\s\S]*)$/i);
+        if (legacyMatch && !chat.includes("<img")) {
+            const fileName = legacyMatch[1];
+            const promptPart = legacyMatch[2] || "";
+            formattedUserChat = `<div class="user-file-badge">📎 ${fileName}</div>${promptPart ? `<div class="user-prompt-text">${promptPart}</div>` : ""}`;
+        }
+
+        div.innerHTML = formattedUserChat;
 
         containerEl.appendChild(div);
         chatBox.appendChild(containerEl);
@@ -797,6 +806,49 @@ if (btnMic && SpeechRecognition) {
 } else if (btnMic) {
     btnMic.style.display = "none";
 }
+
+const imageZoomModal = document.getElementById("imageZoomModal");
+const zoomedImageEl = document.getElementById("zoomedImageEl");
+const btnCloseZoomModal = document.getElementById("btnCloseZoomModal");
+
+function openImageZoomModal(src, alt = "Gambar") {
+    if (!imageZoomModal || !zoomedImageEl || !src) return;
+    zoomedImageEl.src = src;
+    zoomedImageEl.alt = alt;
+    imageZoomModal.style.display = "flex";
+}
+
+function closeImageZoomModal() {
+    if (!imageZoomModal) return;
+    imageZoomModal.style.display = "none";
+    if (zoomedImageEl) zoomedImageEl.src = "";
+}
+
+if (btnCloseZoomModal) {
+    btnCloseZoomModal.addEventListener("click", closeImageZoomModal);
+}
+
+if (imageZoomModal) {
+    imageZoomModal.addEventListener("click", (e) => {
+        if (e.target === imageZoomModal) {
+            closeImageZoomModal();
+        }
+    });
+}
+
+document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && imageZoomModal && imageZoomModal.style.display === "flex") {
+        closeImageZoomModal();
+    }
+});
+
+chatBox.addEventListener("click", (e) => {
+    const clickedImg = e.target.closest("img");
+    if (!clickedImg) return;
+    if (clickedImg.classList.contains("ai-avatar")) return;
+    if (!clickedImg.src) return;
+    openImageZoomModal(clickedImg.src, clickedImg.alt || "Pratinjau gambar");
+});
 
 window.addEventListener('DOMContentLoaded', () => {
     closeSidebarOnMobile();

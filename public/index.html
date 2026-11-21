@@ -162,6 +162,11 @@
         </div>
     </div>
 
+    <div id="imageZoomModal" style="display: none; position: fixed; inset: 0; width: 100vw; height: 100vh; height: 100dvh; background: rgba(0, 0, 0, 0.88); z-index: 2000; align-items: center; justify-content: center; padding: 16px; backdrop-filter: blur(4px);">
+        <button type="button" id="btnCloseZoomModal" title="Tutup" style="position: absolute; top: 18px; right: 18px; width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.25); background: rgba(15,23,42,0.75); color: #ffffff; font-size: 24px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 2002;">×</button>
+        <img id="zoomedImageEl" src="" alt="Pratinjau diperbesar" style="max-width: 95vw; max-height: 88vh; width: auto; height: auto; border-radius: 12px; object-fit: contain; box-shadow: 0 20px 50px rgba(0,0,0,0.5); transition: transform 0.2s ease;">
+    </div>
+
     <script src="script.js"></script>
 </body>
 </html>

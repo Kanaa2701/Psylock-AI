@@ -259,6 +259,16 @@ body {
   border-radius: 12px;
   display: block;
   object-fit: cover;
+  cursor: zoom-in;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.user-attached-img:hover {
+  opacity: 0.95;
+}
+
+.user-attached-img:active {
+  transform: scale(0.98);
 }
 
 .user-prompt-text {
@@ -346,6 +356,10 @@ body {
   border-radius: 8px;
   margin-top: 8px;
   display: block;
+}
+
+.pesan.bot img {
+  cursor: zoom-in;
 }
 
 .pesan img.user-attached-img {
@@ -802,8 +816,8 @@ body {
     }
 
     .user-attached-img {
-        max-width: 200px;
-        max-height: 190px;
+        max-width: 220px;
+        max-height: 210px;
     }
 
     .bot {
@@ -963,6 +977,11 @@ body {
         line-height: 1.6;
         padding: 11px 13px;
         border-radius: 14px;
+    }
+
+    .user-attached-img {
+        max-width: 210px;
+        max-height: 200px;
     }
 
     .bot {
