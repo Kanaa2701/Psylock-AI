@@ -49,11 +49,11 @@ function setPromptVisible(isVisible) {
     }
 }
 
-// Tutup sidebar saat menekan area sebelah kanan (di luar sidebar)
+// Tutup sidebar saat menekan area sebelah kanan (di luar sidebar) — khusus HP saja
 const mainContainer = document.querySelector('.container');
 if (mainContainer) {
     mainContainer.addEventListener('click', () => {
-        if (sidebar && !sidebar.classList.contains('closed')) {
+        if (isMobileView() && sidebar && !sidebar.classList.contains('closed')) {
             closeSidebar();
         }
     });
