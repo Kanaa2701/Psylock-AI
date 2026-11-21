@@ -27,6 +27,17 @@ const searchSectionTitle   = document.getElementById('searchSectionTitle');
 const btnScrollBottom      = document.getElementById("btnScrollBottom");
 let userIsScrollingUp      = false;
 
+function isMobileView() {
+    return window.innerWidth <= 768;
+}
+
+function closeSidebarOnMobile() {
+    if (isMobileView()) {
+        if (sidebar) sidebar.classList.add('closed');
+        if (sidebarSearchWrapper) sidebarSearchWrapper.style.display = 'none';
+    }
+}
+
 chatBox.addEventListener("scroll", () => {
     const threshold = 100;
     const distanceFromBottom = chatBox.scrollHeight - chatBox.scrollTop - chatBox.clientHeight;
@@ -192,6 +203,7 @@ function renderModalSearchResults(filterText = '') {
         itemBtn.addEventListener('click', () => {
             switchSession(session.id);
             closeSearchModal();
+            closeSidebarOnMobile();
         });
         searchResultsList.appendChild(itemBtn);
     });
@@ -249,6 +261,7 @@ function renderHistory(filterText = '') {
         item.innerHTML = `<span>${session.title}</span>`;
         item.addEventListener('click', () => {
             switchSession(session.id);
+            closeSidebarOnMobile();
         });
 
         const actionContainer = document.createElement('div');
@@ -373,6 +386,7 @@ if (btnNewChat) {
 
         if (btnCollection) btnCollection.classList.remove('active');
         chatBox.innerHTML = `<div class="pesan-wrapper bot-wrapper"><img src="avatar.jpeg" class="ai-avatar"><div class="pesan bot">${defaultGreeting}</div></div>`;
+        closeSidebarOnMobile();
     });
 }
 
@@ -732,6 +746,7 @@ if (btnMic && SpeechRecognition) {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
+    closeSidebarOnMobile();
     switchSession(currentSessionId);
     renderHistory();
 });
