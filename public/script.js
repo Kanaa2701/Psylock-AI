@@ -79,6 +79,22 @@ function setPromptVisible(isVisible) {
     }
 }
 
+function syncSidebarActiveStates() {
+    if (btnCollection) {
+        btnCollection.classList.toggle('active', isCollectionView);
+    }
+    if (btnNewChat) {
+        const currentS = chatSessions.find(s => s.id == currentSessionId);
+        const isNewChatActive = !isCollectionView && currentS && currentS.messages && currentS.messages.length <= 1;
+        btnNewChat.classList.toggle('active', Boolean(isNewChatActive));
+    }
+    document.querySelectorAll('.history-item-wrapper').forEach(wrapper => {
+        const sessionId = wrapper.dataset.sessionId;
+        const shouldBeActive = !isCollectionView && sessionId == currentSessionId;
+        wrapper.classList.toggle('active', shouldBeActive);
+    });
+}
+
 // Tutup sidebar saat menekan area sebelah kanan (di luar sidebar) — khusus HP saja
 const mainContainer = document.querySelector('.container');
 if (mainContainer) {
@@ -133,7 +149,10 @@ function saveSessions() {
 }
 
 if (btnOpenSidebar) {
-    btnOpenSidebar.addEventListener('click', () => { sidebar.classList.remove('closed'); });
+    btnOpenSidebar.addEventListener('click', () => {
+        sidebar.classList.remove('closed');
+        syncSidebarActiveStates();
+    });
 }
 if (btnCloseSidebar) {
     btnCloseSidebar.addEventListener('click', () => {
@@ -156,6 +175,7 @@ if (btnToggleSearch) {
 if (btnSearchMini) {
     btnSearchMini.addEventListener('click', () => {
         sidebar.classList.remove('closed');
+        syncSidebarActiveStates();
         openSearchModal();
     });
 }
@@ -261,9 +281,9 @@ function renderModalSearchResults(filterText = '') {
 
 function openCollection() {
     isCollectionView = true;
-    document.querySelectorAll('.history-item-wrapper.active').forEach(el => {
-        el.classList.remove('active');
-    });
+    if (document.activeElement && typeof document.activeElement.blur === 'function') {
+        document.activeElement.blur();
+    }
 
     let allFiles = [];
     chatSessions.forEach(session => {
@@ -285,10 +305,9 @@ function openCollection() {
             </div>
         </div>
     `;
-    if (btnNewChat) btnNewChat.classList.remove('active');
-    if (btnCollection) btnCollection.classList.add('active');
 
     setPromptVisible(false);
+    syncSidebarActiveStates();
     closeSidebarOnMobile();
 }
 
@@ -312,6 +331,7 @@ function renderHistory(filterText = '') {
 
     filtered.forEach(session => {
         const wrapper = document.createElement('div');
+        wrapper.dataset.sessionId = session.id;
         const isSessionActive = !isCollectionView && session.id == currentSessionId;
         wrapper.className = `history-item-wrapper ${isSessionActive ? 'active' : ''}`;
 
@@ -360,13 +380,7 @@ function renderHistory(filterText = '') {
         sidebarHistory.appendChild(wrapper);
     });
 
-    const currentS = chatSessions.find(s => s.id == currentSessionId);
-    if (!isCollectionView && currentS && currentS.messages.length <= 1 && btnNewChat) {
-        btnNewChat.classList.add('active');
-        if (btnCollection) btnCollection.classList.remove('active');
-    } else if (btnNewChat) {
-        btnNewChat.classList.remove('active');
-    }
+    syncSidebarActiveStates();
 }
 
 function togglePinSession(id) {
