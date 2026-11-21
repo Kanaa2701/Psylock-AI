@@ -693,6 +693,25 @@ prompt.addEventListener("input", function() {
     this.style.height = (this.scrollHeight) + "px";
 });
 
+function keepChatVisibleOnKeyboard() {
+    if (!isMobileView() || !chatBox) return;
+    setTimeout(() => {
+        if (!userIsScrollingUp) {
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+    }, 150);
+}
+
+prompt.addEventListener("focus", keepChatVisibleOnKeyboard);
+
+if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", () => {
+        if (document.activeElement === prompt) {
+            keepChatVisibleOnKeyboard();
+        }
+    });
+}
+
 btnKirim.onclick = () => {
     const chat = prompt.value.trim();
     if (chat || attachedFile) {
