@@ -3,6 +3,7 @@ const prompt    = document.getElementById("teks");
 const btnKirim  = document.getElementById("kirim");
 const btnUpload = document.getElementById("btnUpload");
 const fileInput = document.getElementById("fileInput");
+const attachmentPreviewList = document.getElementById("attachmentPreviewList");
 
 const sidebar              = document.getElementById('sidebar');
 const btnOpenSidebar       = document.getElementById('btnOpenSidebar');
@@ -144,16 +145,70 @@ if (!activeSession) {
 }
 
 let chatHistory = activeSession ? activeSession.history : [];
-let attachedFile = null;
+let attachedFiles = [];
 let sessionToDeleteId = null;
 
-function clearAttachedFileUI() {
-    attachedFile = null;
-    if (fileInput) fileInput.value = "";
-    if (prompt) {
-        prompt.placeholder = "";
-        prompt.placeholder = "Tuliskan pesan anda..";
+function renderAttachmentPreviews() {
+    if (!attachmentPreviewList) return;
+    attachmentPreviewList.innerHTML = "";
+
+    if (!attachedFiles.length) {
+        attachmentPreviewList.style.display = "none";
+        if (prompt) {
+            prompt.placeholder = "";
+            prompt.placeholder = "Tuliskan pesan anda..";
+        }
+        return;
     }
+
+    attachmentPreviewList.style.display = "flex";
+    if (prompt) prompt.placeholder = "Tambahkan pesan...";
+
+    attachedFiles.forEach((item, index) => {
+        const card = document.createElement("div");
+        const isImage = item.mimeType && item.mimeType.startsWith("image/") && item.previewUrl;
+        card.className = `preview-card ${isImage ? "preview-card-image" : "preview-card-file"}`;
+
+        if (isImage) {
+            const img = document.createElement("img");
+            img.src = item.previewUrl;
+            img.alt = item.name;
+            card.appendChild(img);
+        } else {
+            const extLabel = (item.name.split(".").pop() || "FILE").toUpperCase();
+            card.innerHTML = `
+                <div class="preview-file-badge">
+                    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                    </svg>
+                    <span>${extLabel}</span>
+                </div>
+                <div class="preview-file-name" title="${item.name}">${item.name}</div>
+            `;
+        }
+
+        const removeBtn = document.createElement("button");
+        removeBtn.type = "button";
+        removeBtn.className = "btn-remove-attachment";
+        removeBtn.title = "Batalkan lampiran";
+        removeBtn.innerHTML = "&times;";
+        removeBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            attachedFiles.splice(index, 1);
+            if (fileInput) fileInput.value = "";
+            renderAttachmentPreviews();
+        });
+
+        card.appendChild(removeBtn);
+        attachmentPreviewList.appendChild(card);
+    });
+}
+
+function clearAttachedFileUI() {
+    attachedFiles = [];
+    if (fileInput) fileInput.value = "";
+    renderAttachmentPreviews();
 }
 
 function saveSessions() {
@@ -643,21 +698,23 @@ const newChat = (pengirim, chat) => {
 btnUpload.onclick = () => fileInput.click();
 
 fileInput.onchange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+
+    files.forEach((file) => {
         const reader = new FileReader();
         reader.onload = function(uploadEvent) {
             const fullDataUrl = uploadEvent.target.result;
-            attachedFile = {
+            attachedFiles.push({
                 data: fullDataUrl.split(',')[1],
                 previewUrl: fullDataUrl,
                 mimeType: file.type,
                 name: file.name
-            };
-            prompt.placeholder = `File dilampirkan: ${file.name}`;
+            });
+            renderAttachmentPreviews();
         };
         reader.readAsDataURL(file);
-    }
+    });
 };
 
 async function kirimGambar(promptGambar) {
@@ -715,11 +772,13 @@ async function kirimGambar(promptGambar) {
     }
 }
 
-async function getAiResponse(chatText, fileData) {
+async function getAiResponse(chatText, filesList = []) {
     let userParts = [];
     if (chatText) userParts.push({ text: chatText });
-    if (fileData) {
-        userParts.push({ inline_data: { mime_type: fileData.mimeType, data: fileData.data } });
+    if (Array.isArray(filesList) && filesList.length > 0) {
+        filesList.forEach((fileData) => {
+            userParts.push({ inline_data: { mime_type: fileData.mimeType, data: fileData.data } });
+        });
     }
 
     chatHistory.push({ role: "user", parts: userParts });
@@ -812,17 +871,23 @@ btnKirim.onclick = () => {
     }
 
     const chat = prompt.value.trim();
-    if (chat || attachedFile) {
-        let tampilanUser = chat;
-        const fileKirim = attachedFile;
+    if (chat || attachedFiles.length > 0) {
+        const filesKirim = [...attachedFiles];
+        let tampilanUser = "";
 
-        if (fileKirim) {
-            if (fileKirim.mimeType && fileKirim.mimeType.startsWith("image/") && fileKirim.previewUrl) {
-                tampilanUser = `<img src="${fileKirim.previewUrl}" class="user-attached-img" alt="${fileKirim.name}">${chat ? `<div class="user-prompt-text">${chat}</div>` : ""}`;
-            } else {
-                tampilanUser = `<div class="user-file-badge">📎 ${fileKirim.name}</div>${chat ? `<div class="user-prompt-text">${chat}</div>` : ""}`;
-            }
+        if (filesKirim.length > 0) {
+            const mediaHtml = filesKirim.map((item) => {
+                if (item.mimeType && item.mimeType.startsWith("image/") && item.previewUrl) {
+                    return `<img src="${item.previewUrl}" class="user-attached-img" alt="${item.name}">`;
+                }
+                return `<div class="user-file-badge">📎 ${item.name}</div>`;
+            }).join("");
+
+            tampilanUser = `${mediaHtml}${chat ? `<div class="user-prompt-text">${chat}</div>` : ""}`;
+        } else {
+            tampilanUser = chat;
         }
+
         newChat("user", tampilanUser);
         
         prompt.value = '';
@@ -833,11 +898,11 @@ btnKirim.onclick = () => {
         setGeneratingState(true);
 
         const pesanLower = chat.toLowerCase();
-        if (!fileKirim && (pesanLower.startsWith("buatkan gambar") || pesanLower.startsWith("tampilkan gambar") || pesanLower.startsWith("gambar "))) {
+        if (filesKirim.length === 0 && (pesanLower.startsWith("buatkan gambar") || pesanLower.startsWith("tampilkan gambar") || pesanLower.startsWith("gambar "))) {
             const keywordGambar = chat.replace(/^(buatkan gambar|tampilkan gambar|gambar)\s*/i, "");
             setTimeout(() => { kirimGambar(keywordGambar); }, 500);
         } else {
-            getAiResponse(chat, fileKirim);
+            getAiResponse(chat, filesKirim);
         }
     }
 };

@@ -105,12 +105,13 @@
             </button>
 
             <div class="prompt">
-                <input type="file" id="fileInput" style="display: none;" accept="image/*,.pdf,.txt,.doc,.docx">
+                <input type="file" id="fileInput" style="display: none;" accept="image/*,.pdf,.txt,.doc,.docx" multiple>
+                <div class="attachment-preview-list" id="attachmentPreviewList" style="display: none;"></div>
                 <button type="button" class="btn-upload" id="btnUpload" title="Upload Gambar atau File">
                     <span>+</span>
                 </button>
 
-                <textarea class="teks" id="teks" placeholder="Tuliskan pesan anda.." rows="1"></textarea>
+                <textarea class="teks" id="teks" placeholder="Tuliskan pesan anda.." rows="1" enterkeyhint="enter"></textarea>
 
                 <button type="button" class="mic" id="btnMic" title="Voice Input">
                     <div class="voice-icon">
