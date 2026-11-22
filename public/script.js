@@ -28,6 +28,7 @@ const searchSectionTitle   = document.getElementById('searchSectionTitle');
 const btnScrollBottom      = document.getElementById("btnScrollBottom");
 let userIsScrollingUp      = false;
 let isCollectionView       = false;
+let activeCollectionTab    = 'all'; // 'all' | 'photo' | 'file'
 
 let currentAbortController = null;
 let isGeneratingResponse = false;
@@ -386,6 +387,142 @@ function renderModalSearchResults(filterText = '') {
     });
 }
 
+function extractCollectionItemsFromSessions() {
+    const items = [];
+
+    chatSessions.forEach((session) => {
+        if (!Array.isArray(session.messages)) return;
+
+        session.messages.forEach((msg) => {
+            if (!msg || typeof msg.content !== 'string') return;
+
+            const tempDiv = document.createElement('div');
+            if (msg.pengirim === 'bot' && window.marked && !msg.content.includes('<img') && !msg.content.includes('<span>')) {
+                tempDiv.innerHTML = marked.parse(msg.content);
+            } else {
+                tempDiv.innerHTML = msg.content;
+            }
+
+            // 1. Foto (hindari avatar AI)
+            const imgs = Array.from(tempDiv.querySelectorAll('img')).filter(
+                (img) => !img.classList.contains('ai-avatar') && img.getAttribute('src')
+            );
+            imgs.forEach((img) => {
+                items.push({
+                    type: 'photo',
+                    src: img.getAttribute('src'),
+                    title: img.getAttribute('alt') || 'Foto',
+                    sessionTitle: session.title || 'Percakapan'
+                });
+            });
+
+            // 2. File dari badge lampiran
+            const fileBadges = tempDiv.querySelectorAll('.user-file-badge');
+            fileBadges.forEach((badge) => {
+                const rawName = badge.textContent.replace(/^📎\s*/, '').trim() || 'File';
+                const ext = (rawName.split('.').pop() || 'FILE').toUpperCase();
+                items.push({
+                    type: 'file',
+                    name: rawName,
+                    ext,
+                    sessionTitle: session.title || 'Percakapan'
+                });
+            });
+
+            // 3. Fallback format lama [Mengirim file: nama.ext]
+            if (fileBadges.length === 0) {
+                const legacyMatch = msg.content.match(/\[Mengirim file:\s*(.+?)\]/i);
+                if (legacyMatch) {
+                    const rawName = legacyMatch[1].trim();
+                    const ext = (rawName.split('.').pop() || 'FILE').toUpperCase();
+                    items.push({
+                        type: 'file',
+                        name: rawName,
+                        ext,
+                        sessionTitle: session.title || 'Percakapan'
+                    });
+                }
+            }
+        });
+    });
+
+    return items;
+}
+
+function renderCollectionContent() {
+    const allItems = extractCollectionItemsFromSessions();
+    const filteredItems = allItems.filter((item) => {
+        if (activeCollectionTab === 'photo') return item.type === 'photo';
+        if (activeCollectionTab === 'file') return item.type === 'file';
+        return true;
+    });
+
+    const photoCount = allItems.filter((i) => i.type === 'photo').length;
+    const fileCount = allItems.filter((i) => i.type === 'file').length;
+
+    let cardsHtml = '';
+    if (filteredItems.length === 0) {
+        const emptyLabel =
+            activeCollectionTab === 'photo'
+                ? 'Belum ada foto dalam koleksi.'
+                : activeCollectionTab === 'file'
+                ? 'Belum ada file dalam koleksi.'
+                : 'Belum ada foto atau file dalam riwayat percakapan.';
+        cardsHtml = `<div class="collection-empty">${emptyLabel}</div>`;
+    } else {
+        cardsHtml = `<div class="collection-grid">${filteredItems
+            .map((item) => {
+                if (item.type === 'photo') {
+                    return `
+                        <div class="collection-card">
+                            <img src="${item.src}" alt="${item.title}" class="collection-photo-thumb">
+                            <div class="collection-meta" title="${item.sessionTitle}">Sesi: ${item.sessionTitle}</div>
+                        </div>
+                    `;
+                }
+                return `
+                    <div class="collection-card">
+                        <div class="collection-file-box">
+                            <span>📄</span>
+                            <span>${item.ext}</span>
+                        </div>
+                        <div class="collection-meta" title="${item.name}">${item.name}</div>
+                        <div class="collection-meta" title="${item.sessionTitle}">Sesi: ${item.sessionTitle}</div>
+                    </div>
+                `;
+            })
+            .join('')}</div>`;
+    }
+
+    chatBox.innerHTML = `
+        <div class="collection-view-container">
+            <div class="collection-header">
+                <div class="collection-title">Koleksi</div>
+                <div class="collection-tabs" role="tablist" aria-label="Filter Koleksi">
+                    <button type="button" class="collection-tab-btn ${activeCollectionTab === 'all' ? 'active' : ''}" data-col-tab="all">
+                        Semua (${allItems.length})
+                    </button>
+                    <button type="button" class="collection-tab-btn ${activeCollectionTab === 'photo' ? 'active' : ''}" data-col-tab="photo">
+                        Foto (${photoCount})
+                    </button>
+                    <button type="button" class="collection-tab-btn ${activeCollectionTab === 'file' ? 'active' : ''}" data-col-tab="file">
+                        File (${fileCount})
+                    </button>
+                </div>
+            </div>
+            ${cardsHtml}
+        </div>
+    `;
+
+    chatBox.querySelectorAll('.collection-tab-btn').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            activeCollectionTab = btn.dataset.colTab || 'all';
+            renderCollectionContent();
+        });
+    });
+}
+
 function openCollection() {
     saveCurrentDraft();
     saveSessions();
@@ -394,27 +531,7 @@ function openCollection() {
         document.activeElement.blur();
     }
 
-    let allFiles = [];
-    chatSessions.forEach(session => {
-        if (session.messages) {
-            session.messages.forEach(msg => {
-                if (msg.content.includes("Mengirim file") || msg.content.includes("user-file-badge") || msg.content.includes("<img")) {
-                    allFiles.push(`<div class="pesan ${msg.pengirim}">Sesi: <b>${session.title}</b><br>${msg.content}</div>`);
-                }
-            });
-        }
-    });
-
-    chatBox.innerHTML = `
-        <div class="pesan-wrapper bot-wrapper">
-            <img src="avatar.jpeg" class="ai-avatar">
-            <div class="pesan bot">
-                📁 <b>Koleksi File & Gambar Anda:</b><br><br>
-                ${allFiles.length > 0 ? allFiles.join('<hr style="margin: 10px 0; border:0; border-top:1px solid #cbd5e1;">') : "Belum ada file atau gambar yang pernah dikirim ke AI dalam riwayat percakapan."}
-            </div>
-        </div>
-    `;
-
+    renderCollectionContent();
     setPromptVisible(false);
     syncSidebarActiveStates();
     closeSidebarOnMobile();
@@ -563,7 +680,6 @@ if (btnNewChat) {
             activeS.draft = currentText;
         }
 
-        // Jika sudah berada di sesi obrolan baru yang belum ada pesan terkirim, pertahankan draf di tempat
         if (!isCollectionView && isFreshEmptySession(activeS)) {
             if (prompt) {
                 prompt.value = currentText;
@@ -578,7 +694,6 @@ if (btnNewChat) {
             return;
         }
 
-        // Jika berpindah dari riwayat chat / koleksi, buka kembali sesi obrolan baru yang masih kosong (beserta drafnya) jika ada
         const existingPending = getPendingNewChatSession();
         if (existingPending) {
             isCollectionView = false;
