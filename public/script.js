@@ -150,7 +150,10 @@ let sessionToDeleteId = null;
 function clearAttachedFileUI() {
     attachedFile = null;
     if (fileInput) fileInput.value = "";
-    if (prompt) prompt.placeholder = "Tuliskan pesan anda..";
+    if (prompt) {
+        prompt.placeholder = "";
+        prompt.placeholder = "Tuliskan pesan anda..";
+    }
 }
 
 function saveSessions() {
