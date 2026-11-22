@@ -170,6 +170,59 @@
         <img id="zoomedImageEl" src="" alt="Pratinjau diperbesar" style="max-width: 95vw; max-height: 88vh; width: auto; height: auto; border-radius: 12px; object-fit: contain; box-shadow: 0 20px 50px rgba(0,0,0,0.5); transition: transform 0.2s ease;">
     </div>
 
+    <div id="imageEditorModal" style="display: none;">
+        <div class="editor-topbar">
+            <button type="button" class="editor-icon-btn" id="btnCloseEditor" title="Tutup">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="19" y1="12" x2="5" y2="12"></line>
+                    <polyline points="12 19 5 12 12 5"></polyline>
+                </svg>
+            </button>
+
+            <div class="editor-top-actions">
+                <button type="button" class="editor-icon-btn" id="btnEditorUndo" title="Undo" disabled>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="9 14 4 9 9 4"></polyline>
+                        <path d="M20 20v-7a4 4 0 0 0-4-4H4"></path>
+                    </svg>
+                </button>
+                <button type="button" class="editor-icon-btn" id="btnEditorRedo" title="Redo" disabled>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="15 14 20 9 15 4"></polyline>
+                        <path d="M4 20v-7a4 4 0 0 1 4-4h12"></path>
+                    </svg>
+                </button>
+                <button type="button" class="editor-save-btn" id="btnEditorSave">Simpan</button>
+            </div>
+        </div>
+
+        <div class="editor-canvas-stage">
+            <canvas id="imageEditorCanvas"></canvas>
+        </div>
+
+        <div class="editor-bottom-panel">
+            <div class="editor-color-swatches" id="editorColorSwatches">
+                <button type="button" class="color-swatch active" data-color="#ef4444" style="background: #ef4444;" title="Merah"></button>
+                <button type="button" class="color-swatch" data-color="#facc15" style="background: #facc15;" title="Kuning"></button>
+                <button type="button" class="color-swatch" data-color="#22c55e" style="background: #22c55e;" title="Hijau"></button>
+                <button type="button" class="color-swatch" data-color="#38bdf8" style="background: #38bdf8;" title="Biru"></button>
+                <button type="button" class="color-swatch" data-color="#a855f7" style="background: #a855f7;" title="Ungu"></button>
+                <button type="button" class="color-swatch" data-color="#ffffff" style="background: #ffffff;" title="Putih"></button>
+                <button type="button" class="color-swatch" data-color="#0f172a" style="background: #0f172a;" title="Hitam"></button>
+            </div>
+
+            <div class="editor-tools">
+                <button type="button" class="editor-tool-btn active" id="btnToolSketch">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 19l7-7 3 3-7 7-3-3z"></path>
+                        <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path>
+                    </svg>
+                    <span>Sketsa</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script src="script.js"></script>
 </body>
 </html>

@@ -173,6 +173,11 @@ function renderAttachmentPreviews() {
             const img = document.createElement("img");
             img.src = item.previewUrl;
             img.alt = item.name;
+            img.style.cursor = "pointer";
+            img.addEventListener("click", (e) => {
+                e.stopPropagation();
+                openImageEditor(index);
+            });
             card.appendChild(img);
         } else {
             const extLabel = (item.name.split(".").pop() || "FILE").toUpperCase();
@@ -1006,6 +1011,166 @@ chatBox.addEventListener("click", (e) => {
     if (!clickedImg.src) return;
     openImageZoomModal(clickedImg.src, clickedImg.alt || "Pratinjau gambar");
 });
+
+// Editor Coretan Gambar (Sketsa, Undo, Redo, Simpan, Close)
+const imageEditorModal = document.getElementById("imageEditorModal");
+const imageEditorCanvas = document.getElementById("imageEditorCanvas");
+const editorCtx = imageEditorCanvas ? imageEditorCanvas.getContext("2d") : null;
+const btnCloseEditor = document.getElementById("btnCloseEditor");
+const btnEditorUndo = document.getElementById("btnEditorUndo");
+const btnEditorRedo = document.getElementById("btnEditorRedo");
+const btnEditorSave = document.getElementById("btnEditorSave");
+const editorColorSwatches = document.querySelectorAll(".color-swatch");
+
+let editingAttachmentIndex = null;
+let editorStrokeColor = "#ef4444";
+let editorLineWidth = 5;
+let isDrawingOnCanvas = false;
+let editorHistory = [];
+let editorHistoryStep = -1;
+
+function syncEditorHistoryButtons() {
+    if (btnEditorUndo) btnEditorUndo.disabled = editorHistoryStep <= 0;
+    if (btnEditorRedo) btnEditorRedo.disabled = editorHistoryStep >= editorHistory.length - 1;
+}
+
+function pushEditorSnapshot() {
+    if (!imageEditorCanvas || !editorCtx) return;
+    const snapshot = editorCtx.getImageData(0, 0, imageEditorCanvas.width, imageEditorCanvas.height);
+    editorHistory = editorHistory.slice(0, editorHistoryStep + 1);
+    editorHistory.push(snapshot);
+    editorHistoryStep = editorHistory.length - 1;
+    syncEditorHistoryButtons();
+}
+
+function openImageEditor(attachmentIndex) {
+    const item = attachedFiles[attachmentIndex];
+    if (!item || !imageEditorModal || !imageEditorCanvas || !editorCtx) return;
+
+    editingAttachmentIndex = attachmentIndex;
+    editorHistory = [];
+    editorHistoryStep = -1;
+
+    const img = new Image();
+    img.onload = () => {
+        const maxW = Math.min(window.innerWidth - 40, 900);
+        const maxH = Math.min(window.innerHeight - 210, 620);
+        const scale = Math.min(maxW / img.width, maxH / img.height, 1);
+
+        imageEditorCanvas.width = Math.max(1, Math.round(img.width * scale));
+        imageEditorCanvas.height = Math.max(1, Math.round(img.height * scale));
+        editorLineWidth = Math.max(3, Math.round(Math.min(imageEditorCanvas.width, imageEditorCanvas.height) * 0.014));
+
+        editorCtx.clearRect(0, 0, imageEditorCanvas.width, imageEditorCanvas.height);
+        editorCtx.drawImage(img, 0, 0, imageEditorCanvas.width, imageEditorCanvas.height);
+
+        imageEditorModal.style.display = "flex";
+        pushEditorSnapshot();
+    };
+    img.src = item.previewUrl;
+}
+
+function closeImageEditor() {
+    if (!imageEditorModal) return;
+    imageEditorModal.style.display = "none";
+    isDrawingOnCanvas = false;
+    editingAttachmentIndex = null;
+    editorHistory = [];
+    editorHistoryStep = -1;
+}
+
+function getCanvasPointerPos(e) {
+    const rect = imageEditorCanvas.getBoundingClientRect();
+    const scaleX = imageEditorCanvas.width / rect.width;
+    const scaleY = imageEditorCanvas.height / rect.height;
+    return {
+        x: (e.clientX - rect.left) * scaleX,
+        y: (e.clientY - rect.top) * scaleY
+    };
+}
+
+if (imageEditorCanvas && editorCtx) {
+    imageEditorCanvas.addEventListener("pointerdown", (e) => {
+        isDrawingOnCanvas = true;
+        imageEditorCanvas.setPointerCapture(e.pointerId);
+        const pos = getCanvasPointerPos(e);
+        editorCtx.beginPath();
+        editorCtx.moveTo(pos.x, pos.y);
+        editorCtx.lineCap = "round";
+        editorCtx.lineJoin = "round";
+        editorCtx.strokeStyle = editorStrokeColor;
+        editorCtx.lineWidth = editorLineWidth;
+    });
+
+    imageEditorCanvas.addEventListener("pointermove", (e) => {
+        if (!isDrawingOnCanvas) return;
+        const pos = getCanvasPointerPos(e);
+        editorCtx.lineTo(pos.x, pos.y);
+        editorCtx.stroke();
+    });
+
+    const finishStroke = (e) => {
+        if (!isDrawingOnCanvas) return;
+        isDrawingOnCanvas = false;
+        if (e && e.pointerId !== undefined && imageEditorCanvas.hasPointerCapture(e.pointerId)) {
+            imageEditorCanvas.releasePointerCapture(e.pointerId);
+        }
+        editorCtx.closePath();
+        pushEditorSnapshot();
+    };
+
+    imageEditorCanvas.addEventListener("pointerup", finishStroke);
+    imageEditorCanvas.addEventListener("pointercancel", finishStroke);
+}
+
+editorColorSwatches.forEach((swatch) => {
+    swatch.addEventListener("click", () => {
+        editorColorSwatches.forEach((el) => el.classList.remove("active"));
+        swatch.classList.add("active");
+        editorStrokeColor = swatch.dataset.color || "#ef4444";
+    });
+});
+
+if (btnEditorUndo) {
+    btnEditorUndo.addEventListener("click", () => {
+        if (editorHistoryStep <= 0 || !editorCtx) return;
+        editorHistoryStep -= 1;
+        editorCtx.putImageData(editorHistory[editorHistoryStep], 0, 0);
+        syncEditorHistoryButtons();
+    });
+}
+
+if (btnEditorRedo) {
+    btnEditorRedo.addEventListener("click", () => {
+        if (editorHistoryStep >= editorHistory.length - 1 || !editorCtx) return;
+        editorHistoryStep += 1;
+        editorCtx.putImageData(editorHistory[editorHistoryStep], 0, 0);
+        syncEditorHistoryButtons();
+    });
+}
+
+if (btnEditorSave) {
+    btnEditorSave.addEventListener("click", () => {
+        if (editingAttachmentIndex === null || !imageEditorCanvas || !attachedFiles[editingAttachmentIndex]) return;
+        const mimeType = attachedFiles[editingAttachmentIndex].mimeType || "image/png";
+        const outputMime = mimeType === "image/jpeg" ? "image/jpeg" : "image/png";
+        const updatedDataUrl = imageEditorCanvas.toDataURL(outputMime, 0.92);
+
+        attachedFiles[editingAttachmentIndex] = {
+            ...attachedFiles[editingAttachmentIndex],
+            data: updatedDataUrl.split(",")[1],
+            previewUrl: updatedDataUrl,
+            mimeType: outputMime
+        };
+
+        renderAttachmentPreviews();
+        closeImageEditor();
+    });
+}
+
+if (btnCloseEditor) {
+    btnCloseEditor.addEventListener("click", closeImageEditor);
+}
 
 window.addEventListener('DOMContentLoaded', () => {
     closeSidebarOnMobile();
