@@ -61,6 +61,10 @@ function isMobileView() {
     return window.innerWidth <= 768;
 }
 
+function isTouchOrMobileDevice() {
+    return isMobileView() || ('ontouchstart' in window && navigator.maxTouchPoints > 0 && window.innerWidth <= 1024);
+}
+
 function closeSidebar() {
     if (sidebar) sidebar.classList.add('closed');
     if (sidebarSearchWrapper) sidebarSearchWrapper.style.display = 'none';
@@ -142,6 +146,12 @@ if (!activeSession) {
 let chatHistory = activeSession ? activeSession.history : [];
 let attachedFile = null;
 let sessionToDeleteId = null;
+
+function clearAttachedFileUI() {
+    attachedFile = null;
+    if (fileInput) fileInput.value = "";
+    if (prompt) prompt.placeholder = "Tuliskan pesan anda..";
+}
 
 function saveSessions() {
     localStorage.setItem('psylock_sessions', JSON.stringify(chatSessions));
@@ -762,9 +772,7 @@ async function getAiResponse(chatText, fileData) {
     } finally {
         currentAbortController = null;
         setGeneratingState(false);
-        prompt.placeholder = "Tuliskan pesan anda..";
-        attachedFile = null;
-        fileInput.value = "";
+        clearAttachedFileUI();
     }
 }
 
@@ -803,34 +811,37 @@ btnKirim.onclick = () => {
     const chat = prompt.value.trim();
     if (chat || attachedFile) {
         let tampilanUser = chat;
-        if (attachedFile) {
-            if (attachedFile.mimeType && attachedFile.mimeType.startsWith("image/") && attachedFile.previewUrl) {
-                tampilanUser = `<img src="${attachedFile.previewUrl}" class="user-attached-img" alt="${attachedFile.name}">${chat ? `<div class="user-prompt-text">${chat}</div>` : ""}`;
+        const fileKirim = attachedFile;
+
+        if (fileKirim) {
+            if (fileKirim.mimeType && fileKirim.mimeType.startsWith("image/") && fileKirim.previewUrl) {
+                tampilanUser = `<img src="${fileKirim.previewUrl}" class="user-attached-img" alt="${fileKirim.name}">${chat ? `<div class="user-prompt-text">${chat}</div>` : ""}`;
             } else {
-                tampilanUser = `<div class="user-file-badge">📎 ${attachedFile.name}</div>${chat ? `<div class="user-prompt-text">${chat}</div>` : ""}`;
+                tampilanUser = `<div class="user-file-badge">📎 ${fileKirim.name}</div>${chat ? `<div class="user-prompt-text">${chat}</div>` : ""}`;
             }
         }
         newChat("user", tampilanUser);
         
         prompt.value = '';
         prompt.style.height = "auto";
+        clearAttachedFileUI();
 
         currentAbortController = new AbortController();
         setGeneratingState(true);
 
         const pesanLower = chat.toLowerCase();
-        if (!attachedFile && (pesanLower.startsWith("buatkan gambar") || pesanLower.startsWith("tampilkan gambar") || pesanLower.startsWith("gambar "))) {
+        if (!fileKirim && (pesanLower.startsWith("buatkan gambar") || pesanLower.startsWith("tampilkan gambar") || pesanLower.startsWith("gambar "))) {
             const keywordGambar = chat.replace(/^(buatkan gambar|tampilkan gambar|gambar)\s*/i, "");
             setTimeout(() => { kirimGambar(keywordGambar); }, 500);
         } else {
-            const fileKirim = attachedFile;
-            attachedFile = null; 
             getAiResponse(chat, fileKirim);
         }
     }
 };
 
 prompt.addEventListener("keydown", (e) => {
+    if (isTouchOrMobileDevice()) return;
+
     if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault(); 
         btnKirim.click();
