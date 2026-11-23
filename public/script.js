@@ -145,11 +145,12 @@ if (btnScrollBottom) {
 }
 
 const defaultGreeting = "Halo, aku Psylock<br>Ada yang bisa aku bantu?";
+const initialTimestamp = Date.now();
 
 let chatSessions = JSON.parse(localStorage.getItem('psylock_sessions')) || [
-    { id: Date.now(), title: 'Percakapan baru', messages: [{ pengirim: 'bot', content: defaultGreeting }], history: [], draft: '', isPinned: false }
+    { id: initialTimestamp, lastActiveAt: initialTimestamp, title: 'Percakapan baru', messages: [{ pengirim: 'bot', content: defaultGreeting }], history: [], draft: '', isPinned: false }
 ];
-let currentSessionId = localStorage.getItem('psylock_current_session') || chatSessions[0]?.id || Date.now();
+let currentSessionId = localStorage.getItem('psylock_current_session') || chatSessions[0]?.id || initialTimestamp;
 
 let activeSession = getSessionById(currentSessionId);
 if (!activeSession) {
@@ -565,18 +566,38 @@ if (btnCollection) {
     btnCollection.addEventListener('click', openCollection);
 }
 
+function touchSessionToTop(session) {
+    if (!session) return;
+    const now = Date.now();
+    const maxLastActive = chatSessions.reduce(
+        (max, s) => Math.max(max, Number(s.lastActiveAt || s.id || 0)),
+        0
+    );
+    session.lastActiveAt = Math.max(now, maxLastActive + 1);
+
+    const idx = chatSessions.findIndex((s) => String(s.id) === String(session.id));
+    if (idx > 0) {
+        const [moved] = chatSessions.splice(idx, 1);
+        chatSessions.unshift(moved);
+    }
+}
+
 function renderHistory(filterText = '') {
     if (!sidebarHistory) return;
     sidebarHistory.innerHTML = '';
-    
-    let filtered = chatSessions.filter(session => 
+
+    const query = (filterText || '').toLowerCase().trim();
+
+    let filtered = chatSessions.filter(session =>
         session.messages && session.messages.length > 1 &&
-        session.title.toLowerCase().includes(filterText.toLowerCase())
+        (session.title || '').toLowerCase().includes(query)
     );
 
+    // Percakapan terbaru selalu berada di paling atas
     filtered.sort((a, b) => {
-        if (a.isPinned === b.isPinned) return 0;
-        return a.isPinned ? -1 : 1;
+        const timeA = Number(a.lastActiveAt || a.id || 0);
+        const timeB = Number(b.lastActiveAt || b.id || 0);
+        return timeB - timeA;
     });
 
     filtered.forEach(session => {
@@ -638,7 +659,7 @@ function togglePinSession(id) {
     if (session) {
         session.isPinned = !session.isPinned;
         saveSessions();
-        renderHistory();
+        renderHistory(searchChatInput ? searchChatInput.value : '');
     }
 }
 
@@ -836,25 +857,28 @@ if (btnConfirmDelete) {
         }
 
         if (chatSessions.length <= 1) {
-            chatSessions = [{ id: Date.now(), title: 'Percakapan baru', messages: [{ pengirim: 'bot', content: defaultGreeting }], history: [], draft: '', isPinned: false }];
+            const freshId = Date.now();
+            chatSessions = [{ id: freshId, lastActiveAt: freshId, title: 'Percakapan baru', messages: [{ pengirim: 'bot', content: defaultGreeting }], history: [], draft: '', isPinned: false }];
             currentSessionId = chatSessions[0].id;
             chatHistory = [];
             chatBox.innerHTML = `<div class="pesan-wrapper bot-wrapper"><img src="avatar.jpeg" class="ai-avatar"><div class="pesan bot">${defaultGreeting}</div></div>`;
             loadSessionDraft(chatSessions[0]);
             setPromptVisible(true);
             saveSessions();
-            renderHistory();
+            renderHistory(searchChatInput ? searchChatInput.value : '');
             sessionToDeleteId = null;
             return;
         }
 
         chatSessions = chatSessions.filter(s => String(s.id) !== String(id));
         if (String(currentSessionId) === String(id)) {
-            currentSessionId = chatSessions[0].id;
+            renderHistory();
+            const firstVisible = sidebarHistory ? sidebarHistory.querySelector('.history-item-wrapper') : null;
+            currentSessionId = firstVisible ? firstVisible.dataset.sessionId : chatSessions[0].id;
             switchSession(currentSessionId);
         } else {
             saveSessions();
-            renderHistory();
+            renderHistory(searchChatInput ? searchChatInput.value : '');
         }
         sessionToDeleteId = null;
     });
@@ -892,20 +916,27 @@ if (btnNewChat) {
         if (existingPending) {
             isCollectionView = false;
             currentSessionId = existingPending.id;
+            touchSessionToTop(existingPending);
             chatHistory = existingPending.history || [];
             chatBox.innerHTML = `<div class="pesan-wrapper bot-wrapper"><img src="avatar.jpeg" class="ai-avatar"><div class="pesan bot">${defaultGreeting}</div></div>`;
             loadSessionDraft(existingPending);
             saveSessions();
             if (btnCollection) btnCollection.classList.remove('active');
             setPromptVisible(true);
-            renderHistory();
+            renderHistory(searchChatInput ? searchChatInput.value : '');
             closeSidebarOnMobile();
             return;
         }
 
         isCollectionView = false;
+        const maxExistingTime = chatSessions.reduce(
+            (max, s) => Math.max(max, Number(s.lastActiveAt || s.id || 0)),
+            0
+        );
+        const newSessionId = Math.max(Date.now(), maxExistingTime + 1);
         const newSession = {
-            id: Date.now(),
+            id: newSessionId,
+            lastActiveAt: newSessionId,
             title: 'Percakapan baru',
             messages: [{ pengirim: 'bot', content: defaultGreeting }],
             history: [],
@@ -917,7 +948,7 @@ if (btnNewChat) {
         chatHistory = [];
         loadSessionDraft(newSession);
         saveSessions();
-        renderHistory();
+        renderHistory(searchChatInput ? searchChatInput.value : '');
 
         if (btnCollection) btnCollection.classList.remove('active');
         chatBox.innerHTML = `<div class="pesan-wrapper bot-wrapper"><img src="avatar.jpeg" class="ai-avatar"><div class="pesan bot">${defaultGreeting}</div></div>`;
@@ -953,22 +984,29 @@ function switchSession(id, preserveDraft = false) {
     saveSessions();
     setPromptVisible(true);
     if (btnCollection) btnCollection.classList.remove('active');
-    renderHistory();
+    renderHistory(searchChatInput ? searchChatInput.value : '');
 }
 
 function appendMessageToSession(pengirim, content) {
-    let session = getSessionById(currentSessionId);
-    if (session) {
-        if (!session.messages) session.messages = [];
-        session.messages.push({ pengirim, content });
+    const session = getSessionById(currentSessionId);
+    if (!session) return;
 
-        if (pengirim === 'user' && session.title === 'Percakapan baru') {
-            const plainTitle = content.replace(/<[^>]*>?/gm, '').trim() || 'Gambar/File';
-            session.title = plainTitle.substring(0, 30) + (plainTitle.length > 30 ? '...' : '');
-        }
-        saveSessions();
-        renderHistory();
+    if (!Array.isArray(session.messages)) session.messages = [];
+    const wasFresh = session.messages.length <= 1;
+
+    session.messages.push({ pengirim, content });
+
+    if (pengirim === 'user' && session.title === 'Percakapan baru') {
+        const plainTitle = content.replace(/<[^>]*>?/gm, '').trim() || 'Gambar/File';
+        session.title = plainTitle.substring(0, 30) + (plainTitle.length > 30 ? '...' : '');
     }
+
+    if (wasFresh || pengirim === 'user') {
+        touchSessionToTop(session);
+    }
+
+    saveSessions();
+    renderHistory(searchChatInput ? searchChatInput.value : '');
 }
 
 function displayMessageToDOM(pengirim, chat, saveToSession = true) {
@@ -1616,5 +1654,5 @@ if (btnCloseEditor) {
 window.addEventListener('DOMContentLoaded', () => {
     closeSidebarOnMobile();
     switchSession(currentSessionId, true);
-    renderHistory();
+    renderHistory(searchChatInput ? searchChatInput.value : '');
 });
