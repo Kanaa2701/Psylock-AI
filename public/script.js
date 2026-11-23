@@ -160,6 +160,7 @@ if (!activeSession) {
 let chatHistory = activeSession ? activeSession.history : [];
 let attachedFiles = [];
 let sessionToDeleteId = null;
+let pendingDeletePhotoMeta = null;
 
 function saveCurrentDraft() {
     if (!prompt || isCollectionView) return;
@@ -393,7 +394,7 @@ function extractCollectionItemsFromSessions() {
     chatSessions.forEach((session) => {
         if (!Array.isArray(session.messages)) return;
 
-        session.messages.forEach((msg) => {
+        session.messages.forEach((msg, msgIndex) => {
             if (!msg || typeof msg.content !== 'string') return;
 
             const tempDiv = document.createElement('div');
@@ -412,7 +413,9 @@ function extractCollectionItemsFromSessions() {
                     type: 'photo',
                     src: img.getAttribute('src'),
                     title: img.getAttribute('alt') || 'Foto',
-                    sessionTitle: session.title || 'Percakapan'
+                    sessionTitle: session.title || 'Percakapan',
+                    sessionId: session.id,
+                    messageIndex: msgIndex
                 });
             });
 
@@ -425,7 +428,9 @@ function extractCollectionItemsFromSessions() {
                     type: 'file',
                     name: rawName,
                     ext,
-                    sessionTitle: session.title || 'Percakapan'
+                    sessionTitle: session.title || 'Percakapan',
+                    sessionId: session.id,
+                    messageIndex: msgIndex
                 });
             });
 
@@ -439,7 +444,9 @@ function extractCollectionItemsFromSessions() {
                         type: 'file',
                         name: rawName,
                         ext,
-                        sessionTitle: session.title || 'Percakapan'
+                        sessionTitle: session.title || 'Percakapan',
+                        sessionId: session.id,
+                        messageIndex: msgIndex
                     });
                 }
             }
@@ -475,7 +482,13 @@ function renderCollectionContent() {
                 if (item.type === 'photo') {
                     return `
                         <div class="collection-card">
-                            <img src="${item.src}" alt="${item.title}" class="collection-photo-thumb">
+                            <img
+                                src="${item.src}"
+                                alt="${item.title}"
+                                class="collection-photo-thumb"
+                                data-session-id="${item.sessionId}"
+                                data-message-index="${item.messageIndex}"
+                            >
                             <div class="collection-meta" title="${item.sessionTitle}">Sesi: ${item.sessionTitle}</div>
                         </div>
                     `;
@@ -519,6 +532,17 @@ function renderCollectionContent() {
             e.stopPropagation();
             activeCollectionTab = btn.dataset.colTab || 'all';
             renderCollectionContent();
+        });
+    });
+
+    chatBox.querySelectorAll('.collection-photo-thumb').forEach((thumb) => {
+        thumb.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openImageZoomModal(thumb.getAttribute('src'), thumb.getAttribute('alt') || 'Foto', {
+                fromCollection: true,
+                sessionId: thumb.dataset.sessionId,
+                messageIndex: Number(thumb.dataset.messageIndex)
+            });
         });
     });
 }
@@ -620,26 +644,196 @@ function togglePinSession(id) {
 
 function promptDeleteSession(id) {
     sessionToDeleteId = id;
+    pendingDeletePhotoMeta = null;
     const deleteModalOverlay = document.getElementById('deleteModalOverlay');
-    if (deleteModalOverlay) deleteModalOverlay.style.display = 'flex';
+    if (deleteModalOverlay) {
+        const titleEl = deleteModalOverlay.querySelector("h3");
+        const descEl = deleteModalOverlay.querySelector("p");
+        if (titleEl) titleEl.textContent = "Hapus Riwayat Chat";
+        if (descEl) descEl.textContent = "Anda yakin ingin menghapus riwayat chat ini?";
+        deleteModalOverlay.style.zIndex = "1000";
+        deleteModalOverlay.style.display = 'flex';
+    }
+}
+
+function removePhotoFromSession(meta) {
+    if (!meta || !meta.sessionId) return;
+    const session = getSessionById(meta.sessionId);
+    if (!session) return;
+
+    const rawTarget = (meta.src || "").trim();
+    let decodedTarget = rawTarget;
+    try {
+        decodedTarget = decodeURIComponent(rawTarget);
+    } catch (_) {}
+
+    const isSameImageSrc = (candidateSrc) => {
+        if (!rawTarget) return true;
+        const c = (candidateSrc || "").trim();
+        if (!c) return false;
+        let decC = c;
+        try {
+            decC = decodeURIComponent(c);
+        } catch (_) {}
+
+        return (
+            c === rawTarget ||
+            decC === decodedTarget ||
+            c === decodedTarget ||
+            decC === rawTarget ||
+            c.includes(rawTarget) ||
+            rawTarget.includes(c) ||
+            decC.includes(decodedTarget) ||
+            decodedTarget.includes(decC)
+        );
+    };
+
+    if (Array.isArray(session.messages)) {
+        const msg =
+            (typeof meta.messageIndex === "number" && session.messages[meta.messageIndex]) ||
+            session.messages.find((m) => m && typeof m.content === "string" && m.content.includes(rawTarget));
+
+        if (msg && typeof msg.content === "string") {
+            const tempDiv = document.createElement("div");
+            if (msg.pengirim === "bot" && window.marked && !msg.content.includes("<img") && !msg.content.includes("<span>")) {
+                tempDiv.innerHTML = marked.parse(msg.content);
+            } else {
+                tempDiv.innerHTML = msg.content;
+            }
+
+            let removedAnyImg = false;
+            tempDiv.querySelectorAll("img").forEach((img) => {
+                if (img.classList.contains("ai-avatar")) return;
+                if (isSameImageSrc(img.getAttribute("src"))) {
+                    img.remove();
+                    removedAnyImg = true;
+                }
+            });
+
+            if (!removedAnyImg && msg.content.includes("![")) {
+                const updatedMd = msg.content.replace(/!\[[^\]]*\]\(([^)]+)\)/g, (fullMatch, mdUrl) => {
+                    const cleanUrl = mdUrl.trim().split(/\s+/)[0];
+                    if (isSameImageSrc(cleanUrl)) {
+                        removedAnyImg = true;
+                        return "";
+                    }
+                    return fullMatch;
+                });
+                if (removedAnyImg) {
+                    const fallbackDiv = document.createElement("div");
+                    fallbackDiv.innerHTML = window.marked ? marked.parse(updatedMd) : updatedMd;
+                    tempDiv.innerHTML = fallbackDiv.innerHTML;
+                }
+            }
+
+            if (!removedAnyImg) {
+                const reImg = /<img\b[^>]*\bsrc\s*=\s*["']([^"']+)["'][^>]*>/gi;
+                const updatedHtml = msg.content.replace(reImg, (fullTag, attrSrc) => {
+                    if (isSameImageSrc(attrSrc)) {
+                        removedAnyImg = true;
+                        return "";
+                    }
+                    return fullTag;
+                });
+                if (removedAnyImg) {
+                    tempDiv.innerHTML = updatedHtml;
+                }
+            }
+
+            if (removedAnyImg) {
+                const remainingText = (tempDiv.textContent || "").replace(/\s+/g, " ").trim();
+                const remainingBadges = tempDiv.querySelectorAll(".user-file-badge").length;
+                const remainingImgs = Array.from(tempDiv.querySelectorAll("img")).filter(
+                    (i) => !i.classList.contains("ai-avatar")
+                ).length;
+
+                if (!remainingText && remainingBadges === 0 && remainingImgs === 0) {
+                    const msgIdx = session.messages.indexOf(msg);
+                    if (msgIdx !== -1) {
+                        session.messages.splice(msgIdx, 1);
+                    }
+                } else {
+                    tempDiv.querySelectorAll(".user-prompt-text").forEach((el) => {
+                        if (!el.textContent.trim() && el.children.length === 0) el.remove();
+                    });
+                    msg.content = tempDiv.innerHTML.trim();
+                }
+            }
+        }
+    }
+
+    if (Array.isArray(session.history)) {
+        session.history = session.history
+            .map((entry) => {
+                if (!entry || !Array.isArray(entry.parts)) return entry;
+                const filteredParts = entry.parts.filter((part) => {
+                    if (part.inline_data && part.inline_data.data) {
+                        const b64 = part.inline_data.data;
+                        if (rawTarget.includes(b64) || decodedTarget.includes(b64)) {
+                            return false;
+                        }
+                    }
+                    if (typeof part.text === "string" && part.text.includes("![")) {
+                        part.text = part.text.replace(/!\[[^\]]*\]\(([^)]+)\)/g, (m, u) =>
+                            isSameImageSrc(u.trim().split(/\s+/)[0]) ? "" : m
+                        );
+                    }
+                    return true;
+                });
+                return { ...entry, parts: filteredParts };
+            })
+            .filter((entry) => Array.isArray(entry.parts) && entry.parts.length > 0);
+    }
+
+    if (String(currentSessionId) === String(session.id)) {
+        chatHistory = session.history || [];
+    }
+
+    saveSessions();
 }
 
 const btnCancelDelete = document.getElementById('btnCancelDelete');
 if (btnCancelDelete) {
     btnCancelDelete.addEventListener('click', () => {
         const deleteModalOverlay = document.getElementById('deleteModalOverlay');
-        if (deleteModalOverlay) deleteModalOverlay.style.display = 'none';
+        if (deleteModalOverlay) {
+            deleteModalOverlay.style.display = 'none';
+            deleteModalOverlay.style.zIndex = "1000";
+        }
         sessionToDeleteId = null;
+        pendingDeletePhotoMeta = null;
     });
 }
 
 const btnConfirmDelete = document.getElementById('btnConfirmDelete');
 if (btnConfirmDelete) {
     btnConfirmDelete.addEventListener('click', () => {
+        const deleteModalOverlay = document.getElementById('deleteModalOverlay');
+
+        if (pendingDeletePhotoMeta) {
+            const photoMeta = pendingDeletePhotoMeta;
+            pendingDeletePhotoMeta = null;
+
+            if (deleteModalOverlay) {
+                deleteModalOverlay.style.display = 'none';
+                deleteModalOverlay.style.zIndex = "1000";
+            }
+
+            removePhotoFromSession(photoMeta);
+            closeImageZoomModal();
+
+            if (isCollectionView) {
+                renderCollectionContent();
+            }
+            return;
+        }
+
         if (!sessionToDeleteId) return;
         let id = sessionToDeleteId;
-        const deleteModalOverlay = document.getElementById('deleteModalOverlay');
-        if (deleteModalOverlay) deleteModalOverlay.style.display = 'none';
+        if (deleteModalOverlay) {
+            deleteModalOverlay.style.display = 'none';
+            deleteModalOverlay.style.zIndex = "1000";
+        }
 
         if (chatSessions.length <= 1) {
             chatSessions = [{ id: Date.now(), title: 'Percakapan baru', messages: [{ pengirim: 'bot', content: defaultGreeting }], history: [], draft: '', isPinned: false }];
@@ -1171,14 +1365,25 @@ if (btnMic && SpeechRecognition) {
     btnMic.style.display = "none";
 }
 
-const imageZoomModal = document.getElementById("imageZoomModal");
-const zoomedImageEl = document.getElementById("zoomedImageEl");
+const imageZoomModal    = document.getElementById("imageZoomModal");
+const zoomedImageEl     = document.getElementById("zoomedImageEl");
 const btnCloseZoomModal = document.getElementById("btnCloseZoomModal");
+const zoomRightActions  = document.getElementById("zoomRightActions");
+const btnZoomDeletePhoto = document.getElementById("btnZoomDeletePhoto");
+const btnZoomGoChat      = document.getElementById("btnZoomGoChat");
 
-function openImageZoomModal(src, alt = "Gambar") {
+let zoomedPhotoMeta = null;
+
+function openImageZoomModal(src, alt = "Gambar", meta = null) {
     if (!imageZoomModal || !zoomedImageEl || !src) return;
     zoomedImageEl.src = src;
     zoomedImageEl.alt = alt;
+    zoomedPhotoMeta = meta ? { ...meta, src } : null;
+
+    if (zoomRightActions) {
+        zoomRightActions.style.display = zoomedPhotoMeta && zoomedPhotoMeta.fromCollection ? "inline-flex" : "none";
+    }
+
     imageZoomModal.style.display = "flex";
 }
 
@@ -1186,6 +1391,8 @@ function closeImageZoomModal() {
     if (!imageZoomModal) return;
     imageZoomModal.style.display = "none";
     if (zoomedImageEl) zoomedImageEl.src = "";
+    zoomedPhotoMeta = null;
+    if (zoomRightActions) zoomRightActions.style.display = "none";
 }
 
 if (btnCloseZoomModal) {
@@ -1200,6 +1407,37 @@ if (imageZoomModal) {
     });
 }
 
+if (btnZoomGoChat) {
+    btnZoomGoChat.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (!zoomedPhotoMeta || !zoomedPhotoMeta.sessionId) return;
+        const targetSessionId = zoomedPhotoMeta.sessionId;
+        closeImageZoomModal();
+        switchSession(targetSessionId);
+        closeSidebarOnMobile();
+    });
+}
+
+if (btnZoomDeletePhoto) {
+    btnZoomDeletePhoto.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (!zoomedPhotoMeta || !zoomedPhotoMeta.fromCollection) return;
+
+        pendingDeletePhotoMeta = { ...zoomedPhotoMeta };
+        sessionToDeleteId = null;
+
+        const deleteModalOverlay = document.getElementById("deleteModalOverlay");
+        if (deleteModalOverlay) {
+            const titleEl = deleteModalOverlay.querySelector("h3");
+            const descEl = deleteModalOverlay.querySelector("p");
+            if (titleEl) titleEl.textContent = "Hapus Foto";
+            if (descEl) descEl.textContent = "Anda yakin ingin menghapus foto ini dari koleksi?";
+            deleteModalOverlay.style.zIndex = "3000";
+            deleteModalOverlay.style.display = "flex";
+        }
+    });
+}
+
 document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && imageZoomModal && imageZoomModal.style.display === "flex") {
         closeImageZoomModal();
@@ -1210,6 +1448,7 @@ chatBox.addEventListener("click", (e) => {
     const clickedImg = e.target.closest("img");
     if (!clickedImg) return;
     if (clickedImg.classList.contains("ai-avatar")) return;
+    if (clickedImg.classList.contains("collection-photo-thumb")) return;
     if (!clickedImg.src) return;
     openImageZoomModal(clickedImg.src, clickedImg.alt || "Pratinjau gambar");
 });

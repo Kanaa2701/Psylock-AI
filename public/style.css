@@ -334,6 +334,107 @@ body {
   color: #64748b;
 }
 
+/* Modal Zoom Foto (Silang di Kiri, Sampah & Percakapan di Kanan) */
+.image-zoom-modal {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  background: rgba(11, 13, 16, 0.94);
+  z-index: 2600;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 20px;
+  backdrop-filter: blur(4px);
+}
+
+.zoom-topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 2610;
+  pointer-events: none;
+}
+
+.zoom-topbar button {
+  pointer-events: auto;
+}
+
+.zoom-close-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(38, 38, 38, 0.88);
+  color: #ffffff;
+  font-size: 24px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.zoom-close-btn:hover {
+  background: rgba(64, 64, 64, 0.95);
+}
+
+.zoom-close-btn:active {
+  transform: scale(0.95);
+}
+
+.zoom-right-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: rgba(38, 38, 38, 0.9);
+  padding: 4px 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.zoom-action-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: #f8fafc;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.zoom-action-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+#btnZoomDeletePhoto:hover {
+  color: #f87171;
+}
+
+#zoomedImageEl {
+  max-width: 92vw;
+  max-height: 84vh;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 10px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+  transition: transform 0.2s ease;
+}
+
 .pesan {
   padding: 14px 16px;
   border-radius: 16px;
@@ -1204,6 +1305,30 @@ body {
         font-size: 12.5px;
     }
 
+    .image-zoom-modal {
+        padding: 12px;
+    }
+
+    .zoom-topbar {
+        padding: 12px 14px;
+    }
+
+    .zoom-close-btn {
+        width: 38px;
+        height: 38px;
+        font-size: 22px;
+    }
+
+    .zoom-action-btn {
+        width: 34px;
+        height: 34px;
+    }
+
+    #zoomedImageEl {
+        max-width: 96vw;
+        max-height: 82vh;
+    }
+
     .pesan {
         max-width: 100%;
         font-size: 14px;
@@ -1304,9 +1429,24 @@ body {
         gap: 10px;
     }
 
+    .search-input-wrapper {
+        height: 40px;
+        padding: 0 10px;
+        gap: 8px;
+    }
+
+    .search-input-wrapper input {
+        font-size: 14px;
+        min-width: 0;
+    }
+
     .search-modal-body {
         padding: 14px;
         max-height: calc(85vh - 75px);
+    }
+
+    .search-section-title {
+        font-size: 12px;
     }
 
     .search-result-item {
