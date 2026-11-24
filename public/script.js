@@ -54,6 +54,140 @@ const stopIconSvg = `
     </svg>
 `;
 
+function getFileExtensionLabel(fileName = "", mimeType = "") {
+    const cleanName = String(fileName || "").trim();
+    const extMatch = cleanName.match(/\.([a-z0-9]+)$/i);
+    if (extMatch && extMatch[1]) {
+        return extMatch[1].toUpperCase();
+    }
+    if (mimeType === "application/pdf") return "PDF";
+    return "FILE";
+}
+
+function getFileTypeSubtitle(extLabel = "FILE") {
+    const map = {
+        PDF: "PDF",
+        DOC: "Dokumen Word",
+        DOCX: "Dokumen Word",
+        XLS: "Spreadsheet",
+        XLSX: "Spreadsheet",
+        CSV: "CSV",
+        PPT: "Presentasi",
+        PPTX: "Presentasi",
+        TXT: "Teks",
+        JSON: "JSON",
+        ZIP: "Arsip ZIP"
+    };
+    return map[extLabel] || extLabel;
+}
+
+function ensureFileCardStyles() {
+    if (document.getElementById("psylockFileCardStyle")) return;
+    const style = document.createElement("style");
+    style.id = "psylockFileCardStyle";
+    style.textContent = `
+        .pesan.user .user-file-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 220px;
+            max-width: 360px;
+            padding: 10px 14px;
+            border-radius: 14px;
+            background: #f1f5f9;
+            border: 1px solid #e2e8f0;
+            color: #0f172a;
+            text-align: left;
+            vertical-align: middle;
+            box-sizing: border-box;
+            transition: background-color 0.15s ease, border-color 0.15s ease;
+        }
+        .pesan.user .user-file-badge.pdf-clickable:hover {
+            background: #e2e8f0;
+            border-color: #cbd5e1;
+        }
+        .pesan.user .file-card-icon-wrap {
+            width: 36px;
+            height: 40px;
+            border-radius: 8px;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+            flex-shrink: 0;
+            color: #475569;
+        }
+        .pesan.user .file-card-icon-wrap.is-pdf {
+            color: #dc2626;
+        }
+        .pesan.user .file-card-ext-mini {
+            font-size: 8px;
+            font-weight: 700;
+            line-height: 1;
+            letter-spacing: 0.4px;
+            text-transform: uppercase;
+        }
+        .pesan.user .file-card-meta {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            flex: 1;
+            gap: 2px;
+        }
+        .pesan.user .file-card-title {
+            font-size: 13px;
+            font-weight: 600;
+            line-height: 1.3;
+            color: #0f172a;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .pesan.user .file-card-sub {
+            font-size: 11px;
+            font-weight: 500;
+            line-height: 1.25;
+            color: #64748b;
+        }
+        .pesan.user .user-file-badge + .user-file-badge,
+        .pesan.user .user-file-badge + .user-prompt-text {
+            margin-top: 8px;
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+function buildFileCardHtml(fileName, options = {}) {
+    ensureFileCardStyles();
+    const cleanName = String(fileName || "File").trim();
+    const ext = getFileExtensionLabel(cleanName, options.mimeType);
+    const subtitle = getFileTypeSubtitle(ext);
+    const isPdf = isPdfFile(cleanName, options.mimeType);
+    const pdfIdAttr = options.pdfId ? ` data-pdf-id="${options.pdfId}"` : "";
+    const clickableClass = isPdf ? " pdf-clickable" : "";
+    const cursorStyle = isPdf ? "cursor:pointer;" : "";
+    const iconColorClass = isPdf ? " is-pdf" : "";
+
+    return `
+        <div class="user-file-badge${clickableClass}"${pdfIdAttr} data-file-name="${cleanName}" style="${cursorStyle}" title="${cleanName}">
+            <div class="file-card-icon-wrap${iconColorClass}">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                </svg>
+                <span class="file-card-ext-mini">${ext}</span>
+            </div>
+            <div class="file-card-meta">
+                <div class="file-card-title">${cleanName}</div>
+                <div class="file-card-sub">${subtitle}</div>
+            </div>
+        </div>
+    `.trim();
+}
+
 function openPdfDb() {
     if (pdfDbPromise) return pdfDbPromise;
     if (!("indexedDB" in window)) return Promise.resolve(null);
@@ -591,6 +725,8 @@ function saveSessions() {
     saveCurrentDraft();
     localStorage.setItem('psylock_sessions', JSON.stringify(chatSessions));
     localStorage.setItem('psylock_current_session', currentSessionId);
+    localStorage.setItem('psylock_is_collection_view', isCollectionView ? '1' : '0');
+    localStorage.setItem('psylock_collection_tab', activeCollectionTab);
 }
 
 window.addEventListener('beforeunload', () => {
@@ -830,7 +966,10 @@ function extractCollectionItemsFromSessions() {
             // 2. File dari badge lampiran
             const fileBadges = tempDiv.querySelectorAll('.user-file-badge');
             fileBadges.forEach((badge) => {
-                const rawName = (badge.dataset.fileName || badge.textContent || '').replace(/^📎\s*/, '').trim() || 'File';
+                const titleEl = badge.querySelector('.file-card-title');
+                const rawName = (badge.dataset.fileName || (titleEl ? titleEl.textContent : badge.textContent) || '')
+                    .replace(/^📎\s*/, '')
+                    .trim() || 'File';
                 const ext = (rawName.split('.').pop() || 'FILE').toUpperCase();
                 items.push({
                     type: 'file',
@@ -942,6 +1081,7 @@ function renderCollectionContent() {
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
             activeCollectionTab = btn.dataset.colTab || 'all';
+            localStorage.setItem('psylock_collection_tab', activeCollectionTab);
             renderCollectionContent();
         });
     });
@@ -971,8 +1111,8 @@ function renderCollectionContent() {
 
 function openCollection() {
     saveCurrentDraft();
-    saveSessions();
     isCollectionView = true;
+    saveSessions();
     if (document.activeElement && typeof document.activeElement.blur === 'function') {
         document.activeElement.blur();
     }
@@ -1440,7 +1580,10 @@ function appendMessageToSession(pengirim, content) {
     session.messages.push({ pengirim, content });
 
     if (pengirim === 'user' && session.title === 'Percakapan baru') {
-        const plainTitle = content.replace(/<[^>]*>?/gm, '').trim() || 'Gambar/File';
+        const temp = document.createElement('div');
+        temp.innerHTML = content;
+        const badgeTitle = temp.querySelector('.file-card-title');
+        const plainTitle = (badgeTitle ? badgeTitle.textContent : temp.textContent || '').trim() || 'Gambar/File';
         session.title = plainTitle.substring(0, 30) + (plainTitle.length > 30 ? '...' : '');
     }
 
@@ -1533,6 +1676,7 @@ function displayMessageToDOM(pengirim, chat, saveToSession = true) {
         chatBox.appendChild(containerEl);
 
     } else {
+        ensureFileCardStyles();
         containerEl = document.createElement("div");
         containerEl.classList.add("pesan-wrapper", "user-wrapper");
 
@@ -1544,16 +1688,18 @@ function displayMessageToDOM(pengirim, chat, saveToSession = true) {
         if (legacyMatch && !chat.includes("<img")) {
             const fileName = legacyMatch[1];
             const promptPart = legacyMatch[2] || "";
-            const isPdf = isPdfFile(fileName);
-            formattedUserChat = `<div class="user-file-badge ${isPdf ? "pdf-clickable" : ""}" data-file-name="${fileName}" style="${isPdf ? "cursor:pointer;" : ""}">📎 ${fileName}</div>${promptPart ? `<div class="user-prompt-text">${promptPart}</div>` : ""}`;
+            formattedUserChat = `${buildFileCardHtml(fileName)}${promptPart ? `<div class="user-prompt-text">${promptPart}</div>` : ""}`;
         }
 
         div.innerHTML = formattedUserChat;
         div.querySelectorAll(".user-file-badge").forEach((badge) => {
             const name = (badge.dataset.fileName || badge.textContent || "").replace(/^📎\s*/, "").trim();
-            if (isPdfFile(name)) {
-                badge.classList.add("pdf-clickable");
-                badge.style.cursor = "pointer";
+            if (!badge.querySelector(".file-card-title") && name) {
+                const pdfId = badge.dataset.pdfId || "";
+                const tempWrap = document.createElement("div");
+                tempWrap.innerHTML = buildFileCardHtml(name, { pdfId });
+                const newCard = tempWrap.firstElementChild;
+                if (newCard) badge.replaceWith(newCard);
             }
         });
 
@@ -1789,9 +1935,12 @@ btnKirim.onclick = () => {
                         data: item.data,
                         dataUrl: item.previewUrl || item.dataUrl
                     });
-                    return `<div class="user-file-badge pdf-clickable" data-pdf-id="${reg.id}" data-file-name="${item.name}" style="cursor:pointer;">📎 ${item.name}</div>`;
+                    return buildFileCardHtml(item.name, {
+                        pdfId: reg.id,
+                        mimeType: "application/pdf"
+                    });
                 }
-                return `<div class="user-file-badge">📎 ${item.name}</div>`;
+                return buildFileCardHtml(item.name, { mimeType: item.mimeType });
             }).join("");
 
             tampilanUser = `${mediaHtml}${chat ? `<div class="user-prompt-text">${chat}</div>` : ""}`;
@@ -1969,7 +2118,10 @@ document.addEventListener("keydown", (e) => {
 chatBox.addEventListener("click", (e) => {
     const fileBadge = e.target.closest(".user-file-badge");
     if (fileBadge) {
-        const badgeName = (fileBadge.dataset.fileName || fileBadge.textContent || "").replace(/^📎\s*/, "").trim();
+        const titleEl = fileBadge.querySelector(".file-card-title");
+        const badgeName = (fileBadge.dataset.fileName || (titleEl ? titleEl.textContent : fileBadge.textContent) || "")
+            .replace(/^📎\s*/, "")
+            .trim();
         if (isPdfFile(badgeName)) {
             e.stopPropagation();
             const matched = findPdfFile(badgeName, currentSessionId, fileBadge.dataset.pdfId);
@@ -2148,7 +2300,23 @@ if (btnCloseEditor) {
 
 window.addEventListener('DOMContentLoaded', () => {
     openPdfDb();
+    ensureFileCardStyles();
     closeSidebarOnMobile();
-    switchSession(currentSessionId, true);
-    renderHistory(searchChatInput ? searchChatInput.value : '');
+
+    const savedCollectionTab = localStorage.getItem('psylock_collection_tab');
+    if (savedCollectionTab && ['all', 'photo', 'file'].includes(savedCollectionTab)) {
+        activeCollectionTab = savedCollectionTab;
+    }
+
+    const shouldStayInCollection = localStorage.getItem('psylock_is_collection_view') === '1';
+    if (shouldStayInCollection) {
+        isCollectionView = true;
+        renderCollectionContent();
+        setPromptVisible(false);
+        syncSidebarActiveStates();
+        renderHistory(searchChatInput ? searchChatInput.value : '');
+    } else {
+        switchSession(currentSessionId, true);
+        renderHistory(searchChatInput ? searchChatInput.value : '');
+    }
 });
