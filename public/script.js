@@ -312,6 +312,40 @@ function isPdfFile(name = "", mimeType = "") {
     return mimeType === "application/pdf" || String(name).toLowerCase().endsWith(".pdf");
 }
 
+function isAllowedImageOrPdf(fileName = "", mimeType = "") {
+    const cleanName = String(fileName || "").trim();
+    const cleanMime = String(mimeType || "").toLowerCase();
+    const isImage =
+        cleanMime.startsWith("image/") ||
+        /\.(jpe?g|png|gif|webp|bmp|heic|heif)$/i.test(cleanName);
+    const isPdf = isPdfFile(cleanName, cleanMime);
+    return isImage || isPdf;
+}
+
+function showUnsupportedFileNotice(rejectedNames = []) {
+    const detail = rejectedNames.length ? ` (${rejectedNames.join(", ")})` : "";
+    const msg = `Hanya foto dan file PDF yang dapat dikirim${detail}. File selain itu tidak didukung.`;
+
+    if (chatBox && !isCollectionView) {
+        const notice = document.createElement("div");
+        notice.className = "pesan-wrapper bot-wrapper";
+        notice.style.opacity = "0.95";
+        notice.innerHTML = `
+            <img src="avatar.jpeg" class="ai-avatar">
+            <div class="pesan bot" style="background:#fef2f2;color:#991b1b;border:1px solid #fecaca;">${msg}</div>
+        `;
+        chatBox.appendChild(notice);
+        if (!userIsScrollingUp) {
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+        setTimeout(() => {
+            notice.remove();
+        }, 4000);
+    } else {
+        alert(msg);
+    }
+}
+
 function registerPdfFile(meta) {
     if (!meta || !meta.name) return null;
     const key = meta.id || `${meta.sessionId || "global"}::${meta.name}`;
@@ -1726,27 +1760,53 @@ const newChat = (pengirim, chat) => {
     return displayMessageToDOM(pengirim, chat, true);
 }
 
-btnUpload.onclick = () => fileInput.click();
+btnUpload.onclick = () => {
+    if (fileInput) {
+        fileInput.setAttribute("accept", "image/*,.pdf,application/pdf");
+        fileInput.click();
+    }
+};
 
 fileInput.onchange = (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
 
+    const validFiles = [];
+    const rejectedNames = [];
+
     files.forEach((file) => {
+        if (isAllowedImageOrPdf(file.name, file.type)) {
+            validFiles.push(file);
+        } else {
+            rejectedNames.push(file.name || "file");
+        }
+    });
+
+    if (rejectedNames.length > 0) {
+        showUnsupportedFileNotice(rejectedNames);
+    }
+
+    if (!validFiles.length) {
+        fileInput.value = "";
+        return;
+    }
+
+    validFiles.forEach((file) => {
         const reader = new FileReader();
         reader.onload = function(uploadEvent) {
             const fullDataUrl = uploadEvent.target.result;
             const base64Part = fullDataUrl.split(',')[1];
+            const effectiveMime = isPdfFile(file.name, file.type) ? "application/pdf" : file.type;
             const fileItem = {
                 data: base64Part,
                 previewUrl: fullDataUrl,
                 dataUrl: fullDataUrl,
-                mimeType: file.type,
+                mimeType: effectiveMime,
                 name: file.name
             };
             attachedFiles.push(fileItem);
 
-            if (isPdfFile(file.name, file.type)) {
+            if (isPdfFile(file.name, effectiveMime)) {
                 registerPdfFile({
                     id: `${currentSessionId}::${file.name}`,
                     sessionId: currentSessionId,
@@ -1760,6 +1820,8 @@ fileInput.onchange = (e) => {
         };
         reader.readAsDataURL(file);
     });
+
+    fileInput.value = "";
 };
 
 async function kirimGambar(promptGambar) {
@@ -1917,8 +1979,11 @@ btnKirim.onclick = () => {
     }
 
     const chat = prompt.value.trim();
-    if (chat || attachedFiles.length > 0) {
-        const filesKirim = [...attachedFiles];
+    const filesKirim = attachedFiles.filter((item) =>
+        isAllowedImageOrPdf(item.name, item.mimeType)
+    );
+
+    if (chat || filesKirim.length > 0) {
         let tampilanUser = "";
 
         if (filesKirim.length > 0) {
