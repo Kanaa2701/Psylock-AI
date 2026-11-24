@@ -33,6 +33,14 @@ let activeCollectionTab    = 'all'; // 'all' | 'photo' | 'file'
 let currentAbortController = null;
 let isGeneratingResponse = false;
 
+const pdfFileRegistry = new Map();
+let pendingDeletePdfMeta = null;
+let activePdfPreviewMeta = null;
+
+const PDF_DB_NAME = "PsylockPdfDb";
+const PDF_STORE_NAME = "pdf_files";
+let pdfDbPromise = null;
+
 const sendIconSvg = `
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
         <line x1="12" y1="19" x2="12" y2="5"></line>
@@ -45,6 +53,405 @@ const stopIconSvg = `
         <rect x="5" y="5" width="14" height="14" rx="2.5"></rect>
     </svg>
 `;
+
+function openPdfDb() {
+    if (pdfDbPromise) return pdfDbPromise;
+    if (!("indexedDB" in window)) return Promise.resolve(null);
+
+    pdfDbPromise = new Promise((resolve) => {
+        const req = indexedDB.open(PDF_DB_NAME, 1);
+        req.onupgradeneeded = (e) => {
+            const db = e.target.result;
+            if (!db.objectStoreNames.contains(PDF_STORE_NAME)) {
+                const store = db.createObjectStore(PDF_STORE_NAME, { keyPath: "id" });
+                store.createIndex("by_name", "name", { unique: false });
+                store.createIndex("by_session", "sessionId", { unique: false });
+            }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => resolve(null);
+    });
+    return pdfDbPromise;
+}
+
+async function savePdfToIndexedDb(record) {
+    if (!record || !record.id) return;
+    const db = await openPdfDb();
+    if (!db) return;
+
+    return new Promise((resolve) => {
+        const tx = db.transaction(PDF_STORE_NAME, "readwrite");
+        tx.objectStore(PDF_STORE_NAME).put({
+            id: record.id,
+            name: record.name,
+            sessionId: String(record.sessionId || ""),
+            mimeType: record.mimeType || "application/pdf",
+            dataUrl: record.dataUrl || (record.data ? `data:application/pdf;base64,${record.data}` : "")
+        });
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => resolve(false);
+    });
+}
+
+async function loadPdfFromIndexedDb(fileName, sessionId, pdfId) {
+    const db = await openPdfDb();
+    if (!db) return null;
+
+    return new Promise((resolve) => {
+        const tx = db.transaction(PDF_STORE_NAME, "readonly");
+        const store = tx.objectStore(PDF_STORE_NAME);
+
+        if (pdfId) {
+            const byIdReq = store.get(pdfId);
+            byIdReq.onsuccess = () => {
+                if (byIdReq.result && byIdReq.result.dataUrl) {
+                    resolve(byIdReq.result);
+                    return;
+                }
+                searchByName();
+            };
+            byIdReq.onerror = () => searchByName();
+        } else {
+            searchByName();
+        }
+
+        function searchByName() {
+            if (!fileName) {
+                resolve(null);
+                return;
+            }
+            const idx = store.index("by_name");
+            const req = idx.getAll(fileName);
+            req.onsuccess = () => {
+                const list = Array.isArray(req.result) ? req.result : [];
+                if (!list.length) {
+                    resolve(null);
+                    return;
+                }
+                if (sessionId !== undefined && sessionId !== null) {
+                    const sameSession = list.find((item) => String(item.sessionId) === String(sessionId) && item.dataUrl);
+                    if (sameSession) {
+                        resolve(sameSession);
+                        return;
+                    }
+                }
+                const anyWithData = [...list].reverse().find((item) => item.dataUrl);
+                resolve(anyWithData || null);
+            };
+            req.onerror = () => resolve(null);
+        }
+    });
+}
+
+async function deletePdfFromIndexedDb(meta) {
+    const db = await openPdfDb();
+    if (!db || !meta) return;
+
+    return new Promise((resolve) => {
+        const tx = db.transaction(PDF_STORE_NAME, "readwrite");
+        const store = tx.objectStore(PDF_STORE_NAME);
+
+        if (meta.id) {
+            store.delete(meta.id);
+        }
+        if (meta.name) {
+            const idx = store.index("by_name");
+            const cursorReq = idx.openCursor(IDBKeyRange.only(meta.name));
+            cursorReq.onsuccess = (e) => {
+                const cursor = e.target.result;
+                if (cursor) {
+                    const val = cursor.value;
+                    if (!meta.sessionId || String(val.sessionId) === String(meta.sessionId)) {
+                        cursor.delete();
+                    }
+                    cursor.continue();
+                }
+            };
+        }
+
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => resolve(false);
+    });
+}
+
+function isPdfFile(name = "", mimeType = "") {
+    return mimeType === "application/pdf" || String(name).toLowerCase().endsWith(".pdf");
+}
+
+function registerPdfFile(meta) {
+    if (!meta || !meta.name) return null;
+    const key = meta.id || `${meta.sessionId || "global"}::${meta.name}`;
+    const existing = pdfFileRegistry.get(key) || {};
+    const merged = { ...existing, ...meta, id: key };
+
+    if (!merged.dataUrl && merged.data) {
+        merged.dataUrl = `data:application/pdf;base64,${merged.data}`;
+    } else if (!merged.data && merged.dataUrl && merged.dataUrl.includes(",")) {
+        merged.data = merged.dataUrl.split(",")[1];
+    }
+
+    pdfFileRegistry.set(key, merged);
+    if (merged.dataUrl) {
+        savePdfToIndexedDb(merged);
+    }
+    return merged;
+}
+
+function findPdfFile(fileName, sessionId, pdfId) {
+    if (pdfId && pdfFileRegistry.has(pdfId)) {
+        return pdfFileRegistry.get(pdfId);
+    }
+    const entries = Array.from(pdfFileRegistry.values()).reverse();
+    if (sessionId !== undefined && sessionId !== null) {
+        const bySession = entries.find((f) => f.name === fileName && String(f.sessionId) === String(sessionId));
+        if (bySession) return bySession;
+    }
+    return entries.find((f) => f.name === fileName) || null;
+}
+
+function removePdfFromSession(meta) {
+    if (!meta) return;
+    const targetName = (meta.name || "").trim();
+    const targetId = meta.id || "";
+    const session = meta.sessionId ? getSessionById(meta.sessionId) : null;
+
+    if (targetId && pdfFileRegistry.has(targetId)) {
+        pdfFileRegistry.delete(targetId);
+    }
+    if (targetName) {
+        for (const [k, v] of pdfFileRegistry.entries()) {
+            if (v && v.name === targetName && (!meta.sessionId || String(v.sessionId) === String(meta.sessionId))) {
+                pdfFileRegistry.delete(k);
+            }
+        }
+    }
+
+    deletePdfFromIndexedDb(meta);
+
+    if (session && Array.isArray(session.messages) && targetName) {
+        const escapedName = targetName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        session.messages = session.messages
+            .map((msg) => {
+                if (!msg || typeof msg.content !== "string") return msg;
+                const tempDiv = document.createElement("div");
+                tempDiv.innerHTML = msg.content;
+
+                let changed = false;
+                tempDiv.querySelectorAll(".user-file-badge").forEach((badge) => {
+                    const bName = (badge.dataset.fileName || badge.textContent || "").replace(/^📎\s*/, "").trim();
+                    if (bName === targetName) {
+                        badge.remove();
+                        changed = true;
+                    }
+                });
+
+                if (!changed) {
+                    const legacyRe = new RegExp(`\\[Mengirim file:\\s*${escapedName}\\]`, "gi");
+                    if (legacyRe.test(msg.content)) {
+                        tempDiv.innerHTML = msg.content.replace(legacyRe, "");
+                        changed = true;
+                    }
+                }
+
+                if (!changed) return msg;
+
+                const remainingText = (tempDiv.textContent || "").replace(/\s+/g, " ").trim();
+                const remainingBadges = tempDiv.querySelectorAll(".user-file-badge").length;
+                const remainingImgs = Array.from(tempDiv.querySelectorAll("img")).filter(
+                    (i) => !i.classList.contains("ai-avatar")
+                ).length;
+
+                if (!remainingText && remainingBadges === 0 && remainingImgs === 0) {
+                    return null;
+                }
+
+                tempDiv.querySelectorAll(".user-prompt-text").forEach((el) => {
+                    if (!el.textContent.trim() && el.children.length === 0) el.remove();
+                });
+                return { ...msg, content: tempDiv.innerHTML.trim() };
+            })
+            .filter(Boolean);
+    }
+
+    saveSessions();
+}
+
+function closePdfPreviewModal() {
+    const modal = document.getElementById("pdfPreviewModal");
+    if (!modal) return;
+    modal.style.display = "none";
+    const bodyEl = modal.querySelector("#pdfPreviewBody");
+    if (bodyEl) bodyEl.innerHTML = "";
+    activePdfPreviewMeta = null;
+}
+
+function ensurePdfPreviewModal() {
+    let modal = document.getElementById("pdfPreviewModal");
+    if (modal) return modal;
+
+    modal = document.createElement("div");
+    modal.id = "pdfPreviewModal";
+    modal.style.cssText = `
+        position: fixed;
+        inset: 0;
+        background: #ffffff;
+        z-index: 4000;
+        display: none;
+        flex-direction: column;
+    `;
+
+    modal.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;border-bottom:1px solid #e2e8f0;background:#ffffff;position:sticky;top:0;z-index:2;">
+            <button id="btnPdfClose" type="button" title="Tutup" aria-label="Tutup" style="width:36px;height:36px;border-radius:999px;border:none;background:transparent;color:#0f172a;font-size:24px;line-height:1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">&times;</button>
+            <div id="pdfPreviewTitle" style="flex:1;font-size:14px;font-weight:600;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;">Pratinjau File</div>
+            <div style="display:inline-flex;align-items:center;gap:6px;flex-shrink:0;">
+                <button id="btnPdfDelete" type="button" title="Hapus file" aria-label="Hapus file" style="width:36px;height:36px;border-radius:999px;border:1px solid #e2e8f0;background:#f8fafc;color:#0f172a;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    </svg>
+                </button>
+                <button id="btnPdfGoChat" type="button" title="Lihat percakapan" aria-label="Lihat percakapan" style="width:36px;height:36px;border-radius:999px;border:1px solid #e2e8f0;background:#f8fafc;color:#0f172a;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <div id="pdfPreviewBody" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;background:#f1f5f9;padding:16px;display:flex;flex-direction:column;align-items:center;gap:14px;"></div>
+    `;
+
+    document.body.appendChild(modal);
+
+    modal.querySelector("#btnPdfClose").addEventListener("click", () => {
+        closePdfPreviewModal();
+    });
+
+    modal.querySelector("#btnPdfGoChat").addEventListener("click", () => {
+        if (!activePdfPreviewMeta || !activePdfPreviewMeta.sessionId) return;
+        const targetSessionId = activePdfPreviewMeta.sessionId;
+        closePdfPreviewModal();
+        switchSession(targetSessionId);
+        closeSidebarOnMobile();
+    });
+
+    modal.querySelector("#btnPdfDelete").addEventListener("click", () => {
+        if (!activePdfPreviewMeta) return;
+        pendingDeletePdfMeta = { ...activePdfPreviewMeta };
+        pendingDeletePhotoMeta = null;
+        sessionToDeleteId = null;
+
+        const deleteModalOverlay = document.getElementById("deleteModalOverlay");
+        if (deleteModalOverlay) {
+            const titleEl = deleteModalOverlay.querySelector("h3");
+            const descEl = deleteModalOverlay.querySelector("p");
+            if (titleEl) titleEl.textContent = "Hapus File";
+            if (descEl) descEl.textContent = "Anda yakin ingin menghapus file PDF ini?";
+            deleteModalOverlay.style.zIndex = "4500";
+            deleteModalOverlay.style.display = "flex";
+        }
+    });
+
+    return modal;
+}
+
+async function openPdfPreviewModal(fileMeta) {
+    const modal = ensurePdfPreviewModal();
+    const titleEl = modal.querySelector("#pdfPreviewTitle");
+    const bodyEl = modal.querySelector("#pdfPreviewBody");
+    const goChatBtn = modal.querySelector("#btnPdfGoChat");
+
+    activePdfPreviewMeta = fileMeta ? { ...fileMeta } : null;
+    const name = (fileMeta && fileMeta.name) || "Dokumen.pdf";
+    if (titleEl) titleEl.textContent = name;
+
+    if (goChatBtn) {
+        goChatBtn.style.display = fileMeta && fileMeta.sessionId ? "inline-flex" : "none";
+    }
+
+    bodyEl.innerHTML = `
+        <div style="margin:auto;display:flex;flex-direction:column;align-items:center;gap:10px;padding:40px 16px;">
+            <div style="width:28px;height:28px;border:3px solid #cbd5e1;border-top-color:#0f172a;border-radius:50%;animation:pdfSpin 0.8s linear infinite;"></div>
+            <div style="font-size:13px;color:#475569;">Memuat pratinjau PDF...</div>
+        </div>
+    `;
+
+    if (!document.getElementById("pdfSpinStyle")) {
+        const style = document.createElement("style");
+        style.id = "pdfSpinStyle";
+        style.textContent = `@keyframes pdfSpin { to { transform: rotate(360deg); } }`;
+        document.head.appendChild(style);
+    }
+
+    modal.style.display = "flex";
+
+    let dataUrl = fileMeta && fileMeta.dataUrl ? fileMeta.dataUrl : "";
+    if (!dataUrl && fileMeta && fileMeta.data) {
+        dataUrl = `data:application/pdf;base64,${fileMeta.data}`;
+    }
+    if (!dataUrl && fileMeta) {
+        const savedRecord = await loadPdfFromIndexedDb(fileMeta.name, fileMeta.sessionId, fileMeta.id);
+        if (savedRecord && savedRecord.dataUrl) {
+            dataUrl = savedRecord.dataUrl;
+            activePdfPreviewMeta = { ...fileMeta, ...savedRecord };
+            registerPdfFile(activePdfPreviewMeta);
+        }
+    }
+
+    if (!dataUrl) {
+        bodyEl.innerHTML = `
+            <div style="max-width:420px;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:20px;text-align:center;color:#475569;font-size:13px;">
+                Data file PDF tidak tersedia pada sesi aktif ini. Silakan unggah ulang file PDF terlebih dahulu.
+            </div>
+        `;
+        return;
+    }
+
+    try {
+        const base64 = dataUrl.split(",")[1];
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+            bytes[i] = binary.charCodeAt(i);
+        }
+
+        if (window.pdfjsLib) {
+            const pdfDoc = await pdfjsLib.getDocument({ data: bytes }).promise;
+            bodyEl.innerHTML = "";
+
+            const containerWidth = Math.max(260, Math.min(window.innerWidth - 32, 920));
+            const deviceScale = Math.min(window.devicePixelRatio || 1, 2);
+
+            for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+                const page = await pdfDoc.getPage(pageNum);
+                const unscaledViewport = page.getViewport({ scale: 1 });
+                const fitScale = containerWidth / unscaledViewport.width;
+                const renderViewport = page.getViewport({ scale: fitScale * deviceScale });
+
+                const canvas = document.createElement("canvas");
+                canvas.width = Math.round(renderViewport.width);
+                canvas.height = Math.round(renderViewport.height);
+                canvas.style.cssText = `
+                    width: ${containerWidth}px;
+                    max-width: 100%;
+                    height: auto;
+                    background: #ffffff;
+                    border-radius: 8px;
+                    box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
+                `;
+
+                const ctx = canvas.getContext("2d");
+                await page.render({ canvasContext: ctx, viewport: renderViewport }).promise;
+                bodyEl.appendChild(canvas);
+            }
+        } else {
+            bodyEl.innerHTML = `<iframe src="${dataUrl}" title="${name}" style="width:100%;max-width:920px;height:82vh;border:none;border-radius:8px;background:#ffffff;"></iframe>`;
+        }
+    } catch (err) {
+        console.error("Gagal merender PDF:", err);
+        bodyEl.innerHTML = `<iframe src="${dataUrl}" title="${name}" style="width:100%;max-width:920px;height:82vh;border:none;border-radius:8px;background:#ffffff;"></iframe>`;
+    }
+}
 
 function setGeneratingState(generating) {
     isGeneratingResponse = generating;
@@ -423,12 +830,13 @@ function extractCollectionItemsFromSessions() {
             // 2. File dari badge lampiran
             const fileBadges = tempDiv.querySelectorAll('.user-file-badge');
             fileBadges.forEach((badge) => {
-                const rawName = badge.textContent.replace(/^📎\s*/, '').trim() || 'File';
+                const rawName = (badge.dataset.fileName || badge.textContent || '').replace(/^📎\s*/, '').trim() || 'File';
                 const ext = (rawName.split('.').pop() || 'FILE').toUpperCase();
                 items.push({
                     type: 'file',
                     name: rawName,
                     ext,
+                    pdfId: badge.dataset.pdfId || '',
                     sessionTitle: session.title || 'Percakapan',
                     sessionId: session.id,
                     messageIndex: msgIndex
@@ -445,6 +853,7 @@ function extractCollectionItemsFromSessions() {
                         type: 'file',
                         name: rawName,
                         ext,
+                        pdfId: '',
                         sessionTitle: session.title || 'Percakapan',
                         sessionId: session.id,
                         messageIndex: msgIndex
@@ -494,8 +903,9 @@ function renderCollectionContent() {
                         </div>
                     `;
                 }
+                const isPdf = item.ext === 'PDF';
                 return `
-                    <div class="collection-card">
+                    <div class="collection-card ${isPdf ? 'collection-pdf-card' : ''}" data-file-name="${item.name}" data-session-id="${item.sessionId}" data-pdf-id="${item.pdfId || ''}" style="${isPdf ? 'cursor:pointer;' : ''}">
                         <div class="collection-file-box">
                             <span>📄</span>
                             <span>${item.ext}</span>
@@ -544,6 +954,17 @@ function renderCollectionContent() {
                 sessionId: thumb.dataset.sessionId,
                 messageIndex: Number(thumb.dataset.messageIndex)
             });
+        });
+    });
+
+    chatBox.querySelectorAll('.collection-pdf-card').forEach((card) => {
+        card.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const fileName = card.dataset.fileName || 'Dokumen.pdf';
+            const sessionId = card.dataset.sessionId;
+            const pdfId = card.dataset.pdfId;
+            const matched = findPdfFile(fileName, sessionId, pdfId);
+            openPdfPreviewModal(matched || { id: pdfId, name: fileName, sessionId });
         });
     });
 }
@@ -666,6 +1087,7 @@ function togglePinSession(id) {
 function promptDeleteSession(id) {
     sessionToDeleteId = id;
     pendingDeletePhotoMeta = null;
+    pendingDeletePdfMeta = null;
     const deleteModalOverlay = document.getElementById('deleteModalOverlay');
     if (deleteModalOverlay) {
         const titleEl = deleteModalOverlay.querySelector("h3");
@@ -823,6 +1245,7 @@ if (btnCancelDelete) {
         }
         sessionToDeleteId = null;
         pendingDeletePhotoMeta = null;
+        pendingDeletePdfMeta = null;
     });
 }
 
@@ -830,6 +1253,26 @@ const btnConfirmDelete = document.getElementById('btnConfirmDelete');
 if (btnConfirmDelete) {
     btnConfirmDelete.addEventListener('click', () => {
         const deleteModalOverlay = document.getElementById('deleteModalOverlay');
+
+        if (pendingDeletePdfMeta) {
+            const pdfMeta = pendingDeletePdfMeta;
+            pendingDeletePdfMeta = null;
+
+            if (deleteModalOverlay) {
+                deleteModalOverlay.style.display = 'none';
+                deleteModalOverlay.style.zIndex = "1000";
+            }
+
+            removePdfFromSession(pdfMeta);
+            closePdfPreviewModal();
+
+            if (isCollectionView) {
+                renderCollectionContent();
+            } else if (pdfMeta.sessionId) {
+                switchSession(pdfMeta.sessionId, true);
+            }
+            return;
+        }
 
         if (pendingDeletePhotoMeta) {
             const photoMeta = pendingDeletePhotoMeta;
@@ -1101,10 +1544,18 @@ function displayMessageToDOM(pengirim, chat, saveToSession = true) {
         if (legacyMatch && !chat.includes("<img")) {
             const fileName = legacyMatch[1];
             const promptPart = legacyMatch[2] || "";
-            formattedUserChat = `<div class="user-file-badge">📎 ${fileName}</div>${promptPart ? `<div class="user-prompt-text">${promptPart}</div>` : ""}`;
+            const isPdf = isPdfFile(fileName);
+            formattedUserChat = `<div class="user-file-badge ${isPdf ? "pdf-clickable" : ""}" data-file-name="${fileName}" style="${isPdf ? "cursor:pointer;" : ""}">📎 ${fileName}</div>${promptPart ? `<div class="user-prompt-text">${promptPart}</div>` : ""}`;
         }
 
         div.innerHTML = formattedUserChat;
+        div.querySelectorAll(".user-file-badge").forEach((badge) => {
+            const name = (badge.dataset.fileName || badge.textContent || "").replace(/^📎\s*/, "").trim();
+            if (isPdfFile(name)) {
+                badge.classList.add("pdf-clickable");
+                badge.style.cursor = "pointer";
+            }
+        });
 
         containerEl.appendChild(div);
         chatBox.appendChild(containerEl);
@@ -1139,12 +1590,26 @@ fileInput.onchange = (e) => {
         const reader = new FileReader();
         reader.onload = function(uploadEvent) {
             const fullDataUrl = uploadEvent.target.result;
-            attachedFiles.push({
-                data: fullDataUrl.split(',')[1],
+            const base64Part = fullDataUrl.split(',')[1];
+            const fileItem = {
+                data: base64Part,
                 previewUrl: fullDataUrl,
+                dataUrl: fullDataUrl,
                 mimeType: file.type,
                 name: file.name
-            });
+            };
+            attachedFiles.push(fileItem);
+
+            if (isPdfFile(file.name, file.type)) {
+                registerPdfFile({
+                    id: `${currentSessionId}::${file.name}`,
+                    sessionId: currentSessionId,
+                    name: file.name,
+                    mimeType: "application/pdf",
+                    data: base64Part,
+                    dataUrl: fullDataUrl
+                });
+            }
             renderAttachmentPreviews();
         };
         reader.readAsDataURL(file);
@@ -1315,6 +1780,17 @@ btnKirim.onclick = () => {
                 if (item.mimeType && item.mimeType.startsWith("image/") && item.previewUrl) {
                     return `<img src="${item.previewUrl}" class="user-attached-img" alt="${item.name}">`;
                 }
+                if (isPdfFile(item.name, item.mimeType)) {
+                    const reg = registerPdfFile({
+                        id: `${currentSessionId}::${item.name}::${Date.now()}`,
+                        sessionId: currentSessionId,
+                        name: item.name,
+                        mimeType: "application/pdf",
+                        data: item.data,
+                        dataUrl: item.previewUrl || item.dataUrl
+                    });
+                    return `<div class="user-file-badge pdf-clickable" data-pdf-id="${reg.id}" data-file-name="${item.name}" style="cursor:pointer;">📎 ${item.name}</div>`;
+                }
                 return `<div class="user-file-badge">📎 ${item.name}</div>`;
             }).join("");
 
@@ -1462,6 +1938,7 @@ if (btnZoomDeletePhoto) {
         if (!zoomedPhotoMeta || !zoomedPhotoMeta.fromCollection) return;
 
         pendingDeletePhotoMeta = { ...zoomedPhotoMeta };
+        pendingDeletePdfMeta = null;
         sessionToDeleteId = null;
 
         const deleteModalOverlay = document.getElementById("deleteModalOverlay");
@@ -1477,12 +1954,30 @@ if (btnZoomDeletePhoto) {
 }
 
 document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && imageZoomModal && imageZoomModal.style.display === "flex") {
-        closeImageZoomModal();
+    if (e.key === "Escape") {
+        const pdfModal = document.getElementById("pdfPreviewModal");
+        if (pdfModal && pdfModal.style.display === "flex") {
+            closePdfPreviewModal();
+            return;
+        }
+        if (imageZoomModal && imageZoomModal.style.display === "flex") {
+            closeImageZoomModal();
+        }
     }
 });
 
 chatBox.addEventListener("click", (e) => {
+    const fileBadge = e.target.closest(".user-file-badge");
+    if (fileBadge) {
+        const badgeName = (fileBadge.dataset.fileName || fileBadge.textContent || "").replace(/^📎\s*/, "").trim();
+        if (isPdfFile(badgeName)) {
+            e.stopPropagation();
+            const matched = findPdfFile(badgeName, currentSessionId, fileBadge.dataset.pdfId);
+            openPdfPreviewModal(matched || { id: fileBadge.dataset.pdfId, name: badgeName, sessionId: currentSessionId });
+            return;
+        }
+    }
+
     const clickedImg = e.target.closest("img");
     if (!clickedImg) return;
     if (clickedImg.classList.contains("ai-avatar")) return;
@@ -1652,6 +2147,7 @@ if (btnCloseEditor) {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
+    openPdfDb();
     closeSidebarOnMobile();
     switchSession(currentSessionId, true);
     renderHistory(searchChatInput ? searchChatInput.value : '');
