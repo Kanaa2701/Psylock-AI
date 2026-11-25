@@ -30,8 +30,8 @@ let userIsScrollingUp      = false;
 let isCollectionView       = false;
 let activeCollectionTab    = 'all'; // 'all' | 'photo' | 'file'
 
-let currentAbortController = null;
-let isGeneratingResponse = false;
+const sessionControllers = new Map(); // sessionId -> AbortController
+const sessionTypingNodes = new Map(); // sessionId -> single DOM element
 
 const pdfFileRegistry = new Map();
 let pendingDeletePdfMeta = null;
@@ -53,6 +53,25 @@ const stopIconSvg = `
         <rect x="5" y="5" width="14" height="14" rx="2.5"></rect>
     </svg>
 `;
+
+function isSessionGenerating(sessionId) {
+    const sid = String(sessionId);
+    if (sessionControllers.has(sid)) return true;
+    const s = getSessionById(sid);
+    return Boolean(s && s.pendingRequest);
+}
+
+function syncSendButtonForCurrentSession() {
+    if (!btnKirim) return;
+    const generating = !isCollectionView && isSessionGenerating(currentSessionId);
+    if (generating) {
+        btnKirim.innerHTML = stopIconSvg;
+        btnKirim.title = "Hentikan respons";
+    } else {
+        btnKirim.innerHTML = sendIconSvg;
+        btnKirim.title = "kirim";
+    }
+}
 
 function getFileExtensionLabel(fileName = "", mimeType = "") {
     const cleanName = String(fileName || "").trim();
@@ -621,19 +640,6 @@ async function openPdfPreviewModal(fileMeta) {
     }
 }
 
-function setGeneratingState(generating) {
-    isGeneratingResponse = generating;
-    if (!btnKirim) return;
-
-    if (generating) {
-        btnKirim.innerHTML = stopIconSvg;
-        btnKirim.title = "Hentikan respons";
-    } else {
-        btnKirim.innerHTML = sendIconSvg;
-        btnKirim.title = "kirim";
-    }
-}
-
 function isMobileView() {
     return window.innerWidth <= 768;
 }
@@ -723,7 +729,7 @@ const defaultGreeting = "Halo, aku Psylock<br>Ada yang bisa aku bantu?";
 const initialTimestamp = Date.now();
 
 let chatSessions = JSON.parse(localStorage.getItem('psylock_sessions')) || [
-    { id: initialTimestamp, lastActiveAt: initialTimestamp, title: 'Percakapan baru', messages: [{ pengirim: 'bot', content: defaultGreeting }], history: [], draft: '', isPinned: false }
+    { id: initialTimestamp, lastActiveAt: initialTimestamp, title: 'Percakapan baru', messages: [{ pengirim: 'bot', content: defaultGreeting }], history: [], draft: '', isPinned: false, pendingRequest: null }
 ];
 let currentSessionId = localStorage.getItem('psylock_current_session') || chatSessions[0]?.id || initialTimestamp;
 
@@ -1154,6 +1160,7 @@ function openCollection() {
     renderCollectionContent();
     setPromptVisible(false);
     syncSidebarActiveStates();
+    syncSendButtonForCurrentSession();
     closeSidebarOnMobile();
 }
 
@@ -1473,9 +1480,22 @@ if (btnConfirmDelete) {
             deleteModalOverlay.style.zIndex = "1000";
         }
 
+        const existingCtrl = sessionControllers.get(String(id));
+        if (existingCtrl) {
+            existingCtrl.abort();
+            sessionControllers.delete(String(id));
+        }
+        removeTypingForSession(id);
+        deletePdfFromIndexedDb({ sessionId: id });
+        for (const [k, v] of pdfFileRegistry.entries()) {
+            if (v && String(v.sessionId) === String(id)) {
+                pdfFileRegistry.delete(k);
+            }
+        }
+
         if (chatSessions.length <= 1) {
             const freshId = Date.now();
-            chatSessions = [{ id: freshId, lastActiveAt: freshId, title: 'Percakapan baru', messages: [{ pengirim: 'bot', content: defaultGreeting }], history: [], draft: '', isPinned: false }];
+            chatSessions = [{ id: freshId, lastActiveAt: freshId, title: 'Percakapan baru', messages: [{ pengirim: 'bot', content: defaultGreeting }], history: [], draft: '', isPinned: false, pendingRequest: null }];
             currentSessionId = chatSessions[0].id;
             chatHistory = [];
             chatBox.innerHTML = `<div class="pesan-wrapper bot-wrapper"><img src="avatar.jpeg" class="ai-avatar"><div class="pesan bot">${defaultGreeting}</div></div>`;
@@ -1483,6 +1503,7 @@ if (btnConfirmDelete) {
             setPromptVisible(true);
             saveSessions();
             renderHistory(searchChatInput ? searchChatInput.value : '');
+            syncSendButtonForCurrentSession();
             sessionToDeleteId = null;
             return;
         }
@@ -1525,6 +1546,7 @@ if (btnNewChat) {
             if (btnCollection) btnCollection.classList.remove('active');
             setPromptVisible(true);
             syncSidebarActiveStates();
+            syncSendButtonForCurrentSession();
             closeSidebarOnMobile();
             return;
         }
@@ -1541,6 +1563,7 @@ if (btnNewChat) {
             if (btnCollection) btnCollection.classList.remove('active');
             setPromptVisible(true);
             renderHistory(searchChatInput ? searchChatInput.value : '');
+            syncSendButtonForCurrentSession();
             closeSidebarOnMobile();
             return;
         }
@@ -1558,7 +1581,8 @@ if (btnNewChat) {
             messages: [{ pengirim: 'bot', content: defaultGreeting }],
             history: [],
             draft: '',
-            isPinned: false
+            isPinned: false,
+            pendingRequest: null
         };
         chatSessions.unshift(newSession);
         currentSessionId = newSession.id;
@@ -1570,8 +1594,29 @@ if (btnNewChat) {
         if (btnCollection) btnCollection.classList.remove('active');
         chatBox.innerHTML = `<div class="pesan-wrapper bot-wrapper"><img src="avatar.jpeg" class="ai-avatar"><div class="pesan bot">${defaultGreeting}</div></div>`;
         setPromptVisible(true);
+        syncSendButtonForCurrentSession();
         closeSidebarOnMobile();
     });
+}
+
+function renderSessionMessagesIntoDOM(session) {
+    chatBox.innerHTML = '';
+    if (!session) return;
+
+    if (session.messages && session.messages.length > 0) {
+        session.messages.forEach(msg => {
+            displayMessageToDOM(msg.pengirim, msg.content, false, session.id);
+        });
+    } else {
+        session.messages = [{ pengirim: 'bot', content: defaultGreeting }];
+        chatBox.innerHTML = `<div class="pesan-wrapper bot-wrapper"><img src="avatar.jpeg" class="ai-avatar"><div class="pesan bot">${defaultGreeting}</div></div>`;
+    }
+
+    const sid = String(session.id);
+    if (isSessionGenerating(sid)) {
+        const waiting = getOrCreateTypingElement(sid);
+        chatBox.appendChild(waiting);
+    }
 }
 
 function switchSession(id, preserveDraft = false) {
@@ -1582,19 +1627,9 @@ function switchSession(id, preserveDraft = false) {
     currentSessionId = id;
     const session = getSessionById(id);
     if (session) {
-        chatHistory = session.history || [];
-        chatBox.innerHTML = '';
-        
-        if (session.messages && session.messages.length > 0) {
-            session.messages.forEach(msg => {
-                displayMessageToDOM(msg.pengirim, msg.content, false);
-            });
-        } else {
-            session.messages = [{ pengirim: 'bot', content: defaultGreeting }];
-            saveSessions();
-            chatBox.innerHTML = `<div class="pesan-wrapper bot-wrapper"><img src="avatar.jpeg" class="ai-avatar"><div class="pesan bot">${defaultGreeting}</div></div>`;
-        }
-        
+        if (!Array.isArray(session.history)) session.history = [];
+        chatHistory = session.history;
+        renderSessionMessagesIntoDOM(session);
         loadSessionDraft(session);
         chatBox.scrollTop = chatBox.scrollHeight;
     }
@@ -1602,10 +1637,11 @@ function switchSession(id, preserveDraft = false) {
     setPromptVisible(true);
     if (btnCollection) btnCollection.classList.remove('active');
     renderHistory(searchChatInput ? searchChatInput.value : '');
+    syncSendButtonForCurrentSession();
 }
 
-function appendMessageToSession(pengirim, content) {
-    const session = getSessionById(currentSessionId);
+function appendMessageToSession(pengirim, content, targetSessionId = currentSessionId) {
+    const session = getSessionById(targetSessionId);
     if (!session) return;
 
     if (!Array.isArray(session.messages)) session.messages = [];
@@ -1629,7 +1665,65 @@ function appendMessageToSession(pengirim, content) {
     renderHistory(searchChatInput ? searchChatInput.value : '');
 }
 
-function displayMessageToDOM(pengirim, chat, saveToSession = true) {
+function getOrCreateTypingElement(targetSessionId) {
+    const sid = String(targetSessionId);
+    let waiting = sessionTypingNodes.get(sid);
+    if (!waiting) {
+        waiting = document.createElement("div");
+        waiting.classList.add("pesan-wrapper", "bot-wrapper", "typing");
+        waiting.dataset.sessionTypingId = sid;
+        waiting.innerHTML = `<img src="avatar.jpeg" class="ai-avatar"><div class="pesan bot"><span></span><span></span><span></span></div>`;
+        sessionTypingNodes.set(sid, waiting);
+    }
+    return waiting;
+}
+
+function showTypingForSession(targetSessionId) {
+    const sid = String(targetSessionId);
+    const waiting = getOrCreateTypingElement(sid);
+
+    if (!isCollectionView && String(currentSessionId) === sid) {
+        chatBox.querySelectorAll(".pesan-wrapper.bot-wrapper.typing").forEach((el) => {
+            if (el !== waiting) el.remove();
+        });
+        if (!waiting.isConnected || waiting.parentElement !== chatBox) {
+            chatBox.appendChild(waiting);
+        }
+        if (!userIsScrollingUp) {
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+    }
+    return waiting;
+}
+
+function removeTypingForSession(targetSessionId) {
+    const sid = String(targetSessionId);
+    const node = sessionTypingNodes.get(sid);
+    if (node) {
+        node.remove();
+        sessionTypingNodes.delete(sid);
+    }
+    if (!isCollectionView && String(currentSessionId) === sid) {
+        chatBox.querySelectorAll(".pesan-wrapper.bot-wrapper.typing").forEach((el) => el.remove());
+    }
+}
+
+function appendBotResponseToSession(targetSessionId, botText) {
+    const sid = String(targetSessionId);
+    const session = getSessionById(sid);
+    if (!session) return;
+
+    if (!Array.isArray(session.messages)) session.messages = [];
+    session.messages.push({ pengirim: "bot", content: botText });
+    saveSessions();
+    renderHistory(searchChatInput ? searchChatInput.value : '');
+
+    if (!isCollectionView && String(currentSessionId) === sid) {
+        displayMessageToDOM("bot", botText, false, sid);
+    }
+}
+
+function displayMessageToDOM(pengirim, chat, saveToSession = true, targetSessionId = currentSessionId) {
     let containerEl;
 
     if (pengirim === "bot") {
@@ -1750,14 +1844,14 @@ function displayMessageToDOM(pengirim, chat, saveToSession = true) {
     }
 
     if (saveToSession) {
-        appendMessageToSession(pengirim, chat);
+        appendMessageToSession(pengirim, chat, targetSessionId);
     }
 
     return containerEl;
 }
 
-const newChat = (pengirim, chat) => {
-    return displayMessageToDOM(pengirim, chat, true);
+const newChat = (pengirim, chat, targetSessionId = currentSessionId) => {
+    return displayMessageToDOM(pengirim, chat, true, targetSessionId);
 }
 
 btnUpload.onclick = () => {
@@ -1824,9 +1918,30 @@ fileInput.onchange = (e) => {
     fileInput.value = "";
 };
 
-async function kirimGambar(promptGambar) {
-    const waiting = newChat("bot", `<span></span><span></span><span></span>`);
-    waiting.classList.add("typing");
+async function kirimGambar(promptGambar, targetSessionId, isResume = false) {
+    const sid = String(targetSessionId);
+    const session = getSessionById(sid);
+    if (!session) return;
+
+    if (sessionControllers.has(sid) && isResume) {
+        showTypingForSession(sid);
+        return;
+    }
+
+    if (!Array.isArray(session.history)) session.history = [];
+    session.pendingRequest = {
+        type: "image",
+        promptGambar,
+        startedAt: Date.now()
+    };
+    saveSessions();
+
+    const controller = new AbortController();
+    sessionControllers.set(sid, controller);
+    showTypingForSession(sid);
+    renderHistory(searchChatInput ? searchChatInput.value : '');
+    syncSendButtonForCurrentSession();
+
     const promptInstruksi = promptGambar;
 
     try {
@@ -1834,7 +1949,7 @@ async function kirimGambar(promptGambar) {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ promptGambar }),
-            signal: currentAbortController ? currentAbortController.signal : undefined
+            signal: controller.signal
         });
         const hasil = await response.json();
         if (!response.ok) throw new Error(hasil.error || "Gagal membuat prompt gambar");
@@ -1844,105 +1959,169 @@ async function kirimGambar(promptGambar) {
             promptMatang = hasil.candidates[0].content.parts[0].text.trim();
         }
 
-        waiting.remove();
-        let session = getSessionById(currentSessionId);
-        if (session && session.messages) {
-            session.messages = session.messages.filter(m => !m.content.includes("<span></span>"));
-            saveSessions();
-        }
-
         const encodedPrompt = encodeURIComponent(promptMatang);
         const imageUrl = `https://pollinations.ai/prompt/${encodedPrompt}`;
         const balasanGambar = `Berikut adalah hasil gambar untuk **"${promptGambar}"**:\n\n![Hasil Gambar](${imageUrl})`;
 
-        chatHistory.push({ role: "model", parts: [{ text: balasanGambar }] });
-        let activeS = getSessionById(currentSessionId);
-        if (activeS) activeS.history = chatHistory;
-
-        newChat("bot", balasanGambar);
-    } catch (error) {
-        waiting.remove();
-        let session = getSessionById(currentSessionId);
-        if (session && session.messages) {
-            session.messages = session.messages.filter(m => !m.content.includes("<span></span>"));
-            saveSessions();
+        const latestSession = getSessionById(sid);
+        if (latestSession) {
+            if (!Array.isArray(latestSession.history)) latestSession.history = [];
+            latestSession.history.push({ role: "model", parts: [{ text: balasanGambar }] });
+            latestSession.pendingRequest = null;
+            if (String(currentSessionId) === sid) {
+                chatHistory = latestSession.history;
+            }
         }
+
+        removeTypingForSession(sid);
+        appendBotResponseToSession(sid, balasanGambar);
+    } catch (error) {
+        const latestSession = getSessionById(sid);
+        if (latestSession) {
+            latestSession.pendingRequest = null;
+        }
+        removeTypingForSession(sid);
+
         if (error.name === "AbortError") {
-            newChat("bot", "Respons dihentikan.");
+            if (!isResume) {
+                appendBotResponseToSession(sid, "Respons dihentikan.");
+            }
         } else {
             console.error("Gagal meracik gambar:", error);
-            newChat("bot", "Maaf, gagal membuat gambar saat ini.");
+            appendBotResponseToSession(sid, "Maaf, gagal membuat gambar saat ini.");
         }
     } finally {
-        currentAbortController = null;
-        setGeneratingState(false);
+        sessionControllers.delete(sid);
+        saveSessions();
+        renderHistory(searchChatInput ? searchChatInput.value : '');
+        syncSendButtonForCurrentSession();
     }
 }
 
-async function getAiResponse(chatText, filesList = []) {
-    let userParts = [];
-    if (chatText) userParts.push({ text: chatText });
-    if (Array.isArray(filesList) && filesList.length > 0) {
-        filesList.forEach((fileData) => {
-            userParts.push({ inline_data: { mime_type: fileData.mimeType, data: fileData.data } });
-        });
+async function getAiResponse(chatText, filesList = [], targetSessionId, isResume = false) {
+    const sid = String(targetSessionId);
+    const session = getSessionById(sid);
+    if (!session) return;
+
+    if (sessionControllers.has(sid) && isResume) {
+        showTypingForSession(sid);
+        return;
     }
 
-    chatHistory.push({ role: "user", parts: userParts });
-    let activeS = getSessionById(currentSessionId);
-    if (activeS) activeS.history = chatHistory;
+    if (!Array.isArray(session.history)) session.history = [];
 
-    const waiting = newChat("bot", `<span></span><span></span><span></span>`);
-    waiting.classList.add("typing");
+    if (!isResume) {
+        let userParts = [];
+        if (chatText) userParts.push({ text: chatText });
+        if (Array.isArray(filesList) && filesList.length > 0) {
+            filesList.forEach((fileData) => {
+                userParts.push({ inline_data: { mime_type: fileData.mimeType, data: fileData.data } });
+            });
+        }
+        session.history.push({ role: "user", parts: userParts });
+    }
+
+    session.pendingRequest = {
+        type: "chat",
+        chatText,
+        filesList: Array.isArray(filesList)
+            ? filesList.map((f) => ({
+                  mimeType: f.mimeType,
+                  data: f.data,
+                  name: f.name
+              }))
+            : [],
+        startedAt: Date.now()
+    };
+
+    if (String(currentSessionId) === sid) {
+        chatHistory = session.history;
+    }
+    saveSessions();
+
+    const controller = new AbortController();
+    sessionControllers.set(sid, controller);
+    showTypingForSession(sid);
+    renderHistory(searchChatInput ? searchChatInput.value : '');
+    syncSendButtonForCurrentSession();
 
     try {
+        const latestSessionForReq = getSessionById(sid);
+        const payloadContents = latestSessionForReq && Array.isArray(latestSessionForReq.history) && latestSessionForReq.history.length > 0
+            ? latestSessionForReq.history
+            : [{ role: "user", parts: [{ text: chatText || "" }] }];
+
         const response = await fetch("/api/chat", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ contents: chatHistory }),
-            signal: currentAbortController ? currentAbortController.signal : undefined
+            body: JSON.stringify({ contents: payloadContents }),
+            signal: controller.signal
         });
         const hasil = await response.json();
         if (!response.ok) throw new Error(hasil.error || "Gemini API request failed");
 
         if (hasil.candidates?.[0]?.content?.parts?.[0]?.text) {
             const aiResponse = hasil.candidates[0].content.parts[0].text;
-            chatHistory.push({ role: "model", parts: [{ text: aiResponse }] });
-            let activeS2 = getSessionById(currentSessionId);
-            if (activeS2) activeS2.history = chatHistory;
-
-            waiting.remove();
-            let session = getSessionById(currentSessionId);
-            if (session && session.messages) {
-                session.messages = session.messages.filter(m => !m.content.includes("<span></span>"));
-                saveSessions();
+            const latestSession = getSessionById(sid);
+            if (latestSession) {
+                if (!Array.isArray(latestSession.history)) latestSession.history = [];
+                latestSession.history.push({ role: "model", parts: [{ text: aiResponse }] });
+                latestSession.pendingRequest = null;
+                if (String(currentSessionId) === sid) {
+                    chatHistory = latestSession.history;
+                }
             }
-            newChat("bot", aiResponse);
+
+            removeTypingForSession(sid);
+            appendBotResponseToSession(sid, aiResponse);
         } else {
             throw new Error("Invalid response format from API");
         }
     } catch (error) {
-        waiting.remove();
-        let session = getSessionById(currentSessionId);
-        if (session && session.messages) {
-            session.messages = session.messages.filter(m => !m.content.includes("<span></span>"));
-            saveSessions();
+        const latestSession = getSessionById(sid);
+        if (latestSession) {
+            if (!isResume && Array.isArray(latestSession.history) && latestSession.history.length > 0) {
+                const lastEntry = latestSession.history[latestSession.history.length - 1];
+                if (lastEntry && lastEntry.role === "user") {
+                    latestSession.history.pop();
+                }
+            }
+            latestSession.pendingRequest = null;
+            if (String(currentSessionId) === sid) {
+                chatHistory = latestSession.history || [];
+            }
         }
-        chatHistory.pop();
-        let activeS3 = getSessionById(currentSessionId);
-        if (activeS3) activeS3.history = chatHistory;
+
+        removeTypingForSession(sid);
 
         if (error.name === "AbortError") {
-            newChat("bot", "Respons dihentikan.");
+            if (!isResume) {
+                appendBotResponseToSession(sid, "Respons dihentikan.");
+            }
         } else {
             console.error("Error:", error);
-            newChat("bot", "Error Responding");
+            appendBotResponseToSession(sid, "Error Responding");
         }
     } finally {
-        currentAbortController = null;
-        setGeneratingState(false);
-        clearAttachedFileUI();
+        sessionControllers.delete(sid);
+        saveSessions();
+        renderHistory(searchChatInput ? searchChatInput.value : '');
+        syncSendButtonForCurrentSession();
     }
+}
+
+function resumePendingRequestsAfterReload() {
+    chatSessions.forEach((session) => {
+        if (!session || !session.pendingRequest) return;
+        const sid = String(session.id);
+        const reqInfo = session.pendingRequest;
+
+        if (reqInfo.type === "image") {
+            kirimGambar(reqInfo.promptGambar || "", sid, true);
+        } else {
+            getAiResponse(reqInfo.chatText || "", reqInfo.filesList || [], sid, true);
+        }
+    });
 }
 
 prompt.addEventListener("input", function() {
@@ -1971,9 +2150,18 @@ if (window.visualViewport) {
 }
 
 btnKirim.onclick = () => {
-    if (isGeneratingResponse) {
-        if (currentAbortController) {
-            currentAbortController.abort();
+    const sid = String(currentSessionId);
+
+    if (!isCollectionView && isSessionGenerating(sid)) {
+        const activeCtrl = sessionControllers.get(sid);
+        if (activeCtrl) {
+            activeCtrl.abort();
+        } else {
+            const s = getSessionById(sid);
+            if (s) s.pendingRequest = null;
+            removeTypingForSession(sid);
+            saveSessions();
+            syncSendButtonForCurrentSession();
         }
         return;
     }
@@ -1993,8 +2181,8 @@ btnKirim.onclick = () => {
                 }
                 if (isPdfFile(item.name, item.mimeType)) {
                     const reg = registerPdfFile({
-                        id: `${currentSessionId}::${item.name}::${Date.now()}`,
-                        sessionId: currentSessionId,
+                        id: `${sid}::${item.name}::${Date.now()}`,
+                        sessionId: sid,
                         name: item.name,
                         mimeType: "application/pdf",
                         data: item.data,
@@ -2013,24 +2201,21 @@ btnKirim.onclick = () => {
             tampilanUser = chat;
         }
 
-        newChat("user", tampilanUser);
+        newChat("user", tampilanUser, sid);
         
         prompt.value = '';
         prompt.style.height = "auto";
-        const currentS = getSessionById(currentSessionId);
+        const currentS = getSessionById(sid);
         if (currentS) currentS.draft = '';
         saveSessions();
         clearAttachedFileUI();
 
-        currentAbortController = new AbortController();
-        setGeneratingState(true);
-
         const pesanLower = chat.toLowerCase();
         if (filesKirim.length === 0 && (pesanLower.startsWith("buatkan gambar") || pesanLower.startsWith("tampilkan gambar") || pesanLower.startsWith("gambar "))) {
             const keywordGambar = chat.replace(/^(buatkan gambar|tampilkan gambar|gambar)\s*/i, "");
-            setTimeout(() => { kirimGambar(keywordGambar); }, 500);
+            setTimeout(() => { kirimGambar(keywordGambar, sid, false); }, 500);
         } else {
-            getAiResponse(chat, filesKirim);
+            getAiResponse(chat, filesKirim, sid, false);
         }
     }
 };
@@ -2380,8 +2565,11 @@ window.addEventListener('DOMContentLoaded', () => {
         setPromptVisible(false);
         syncSidebarActiveStates();
         renderHistory(searchChatInput ? searchChatInput.value : '');
+        syncSendButtonForCurrentSession();
     } else {
         switchSession(currentSessionId, true);
         renderHistory(searchChatInput ? searchChatInput.value : '');
     }
+
+    resumePendingRequestsAfterReload();
 });
