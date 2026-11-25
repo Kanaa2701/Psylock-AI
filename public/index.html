@@ -57,6 +57,11 @@
                         <rect x="3" y="14" width="7" height="7"></rect>
                     </svg>
                 </button>
+                <button type="button" class="btn-mini-icon" id="btnContactMini" title="Hubungi kami">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                    </svg>
+                </button>
             </div>
 
             <div class="sidebar-top-menus" id="sidebarTopMenus">
@@ -75,6 +80,12 @@
                         <rect x="3" y="14" width="7" height="7"></rect>
                     </svg>
                     <span>Koleksi</span>
+                </button>
+                <button type="button" class="sidebar-menu-item" id="btnContact">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                    </svg>
+                    <span>Hubungi kami</span>
                 </button>
             </div>
 
@@ -105,9 +116,9 @@
             </button>
 
             <div class="prompt">
-                <input type="file" id="fileInput" style="display: none;" accept="image/*,.pdf,.txt,.doc,.docx" multiple>
+                <input type="file" id="fileInput" style="display: none;" accept="image/*,.pdf,application/pdf" multiple>
                 <div class="attachment-preview-list" id="attachmentPreviewList" style="display: none;"></div>
-                <button type="button" class="btn-upload" id="btnUpload" title="Upload Gambar atau File">
+                <button type="button" class="btn-upload" id="btnUpload" title="Upload Foto atau PDF">
                     <span>+</span>
                 </button>
 
@@ -148,6 +159,33 @@
                 <div class="search-modal-body">
                     <div class="search-section-title" id="searchSectionTitle">Obrolan terbaru</div>
                     <div class="search-results-list" id="searchResultsList"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="contactPopupOverlay" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); z-index: 3500; align-items: center; justify-content: center; padding: 16px;">
+            <div id="contactPopupCard" role="dialog" aria-modal="true" aria-labelledby="contactPopupTitle" style="width: 100%; max-width: 340px; background: #ffffff; border-radius: 16px; padding: 16px; box-shadow: 0 16px 36px rgba(15, 23, 42, 0.18); color: #0f172a; box-sizing: border-box;">
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px;">
+                    <div id="contactPopupTitle" style="font-size: 15px; font-weight: 600; color: #0f172a;">Hubungi kami</div>
+                    <button type="button" id="btnCloseContactPopup" aria-label="Tutup" style="width: 28px; height: 28px; border: none; background: transparent; color: #475569; font-size: 20px; line-height: 1; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;">×</button>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc;">
+                        <div style="min-width: 0; flex: 1;">
+                            <div style="font-size: 11px; color: #64748b; line-height: 1.2;">Email</div>
+                            <a href="mailto:psylockai.id@gmail.com" style="display: block; font-size: 13px; font-weight: 500; color: #0f172a; text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px;">psylockai.id@gmail.com</a>
+                        </div>
+                        <button type="button" id="btnCopyContactEmail" style="padding: 5px 9px; border-radius: 8px; border: 1px solid #cbd5e1; background: #ffffff; color: #0f172a; font-size: 11px; font-weight: 600; cursor: pointer; flex-shrink: 0;">Salin</button>
+                    </div>
+
+                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc;">
+                        <div style="min-width: 0; flex: 1;">
+                            <div style="font-size: 11px; color: #64748b; line-height: 1.2;">WhatsApp</div>
+                            <a href="https://wa.me/62881027764047" target="_blank" rel="noopener noreferrer" style="display: block; font-size: 13px; font-weight: 500; color: #0f172a; text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px;">+62 881-0277-64047</a>
+                        </div>
+                        <button type="button" id="btnCopyContactPhone" style="padding: 5px 9px; border-radius: 8px; border: 1px solid #cbd5e1; background: #ffffff; color: #0f172a; font-size: 11px; font-weight: 600; cursor: pointer; flex-shrink: 0;">Salin</button>
+                    </div>
                 </div>
             </div>
         </div>

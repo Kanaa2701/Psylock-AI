@@ -10,6 +10,7 @@ const btnOpenSidebar       = document.getElementById('btnOpenSidebar');
 const btnCloseSidebar      = document.getElementById('btnCloseSidebar');
 const btnNewChatMini       = document.getElementById('btnNewChatMini');
 const btnCollectionMini    = document.getElementById('btnCollectionMini');
+const btnContactMini       = document.getElementById('btnContactMini');
 const btnToggleSearch      = document.getElementById('btnToggleSearch');
 const btnSearchMini        = document.getElementById('btnSearchMini');
 const sidebarSearchWrapper = document.getElementById('sidebarSearchWrapper');
@@ -17,6 +18,7 @@ const searchChatInput      = document.getElementById('searchChat');
 const sidebarHistory       = document.getElementById('sidebarHistory');
 const btnNewChat           = document.getElementById('btnNewChat');
 const btnCollection        = document.getElementById('btnCollection');
+const btnContact           = document.getElementById('btnContact');
 
 const searchModalOverlay   = document.getElementById('searchModalOverlay');
 const modalSearchInput     = document.getElementById('modalSearchInput');
@@ -24,6 +26,11 @@ const btnClearSearch       = document.getElementById('btnClearSearch');
 const btnCloseSearchModal  = document.getElementById('btnCloseSearchModal');
 const searchResultsList    = document.getElementById('searchResultsList');
 const searchSectionTitle   = document.getElementById('searchSectionTitle');
+
+const contactPopupOverlay  = document.getElementById('contactPopupOverlay');
+const btnCloseContactPopup = document.getElementById('btnCloseContactPopup');
+const btnCopyContactEmail  = document.getElementById('btnCopyContactEmail');
+const btnCopyContactPhone  = document.getElementById('btnCopyContactPhone');
 
 const btnScrollBottom      = document.getElementById("btnScrollBottom");
 let userIsScrollingUp      = false;
@@ -41,6 +48,8 @@ const PDF_DB_NAME = "PsylockPdfDb";
 const PDF_STORE_NAME = "pdf_files";
 let pdfDbPromise = null;
 
+let clipboardToastTimer = null;
+
 const sendIconSvg = `
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
         <line x1="12" y1="19" x2="12" y2="5"></line>
@@ -53,6 +62,63 @@ const stopIconSvg = `
         <rect x="5" y="5" width="14" height="14" rx="2.5"></rect>
     </svg>
 `;
+
+function ensureClipboardToast() {
+    let toast = document.getElementById("clipboardToastNotice");
+    if (toast) return toast;
+
+    toast = document.createElement("div");
+    toast.id = "clipboardToastNotice";
+    toast.setAttribute("role", "status");
+    toast.setAttribute("aria-live", "polite");
+    toast.style.cssText = `
+        position: fixed;
+        top: 16px;
+        left: 50%;
+        transform: translateX(-50%) translateY(-10px);
+        background: #ffffff;
+        color: #1e293b;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 10px 16px;
+        font-size: 13px;
+        font-weight: 500;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.14);
+        z-index: 5000;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.18s ease, transform 0.18s ease;
+        max-width: calc(100vw - 32px);
+        white-space: nowrap;
+        text-align: center;
+    `;
+    document.body.appendChild(toast);
+    return toast;
+}
+
+function showClipboardToast(message = "Disalin ke papan klip") {
+    const toast = ensureClipboardToast();
+    toast.textContent = message;
+    toast.style.display = "block";
+
+    requestAnimationFrame(() => {
+        toast.style.opacity = "1";
+        toast.style.transform = "translateX(-50%) translateY(0)";
+    });
+
+    if (clipboardToastTimer) {
+        clearTimeout(clipboardToastTimer);
+    }
+    clipboardToastTimer = setTimeout(() => {
+        toast.style.opacity = "0";
+        toast.style.transform = "translateX(-50%) translateY(-10px)";
+        setTimeout(() => {
+            if (toast.style.opacity === "0") {
+                toast.style.display = "none";
+            }
+        }, 180);
+    }, 1800);
+}
 
 function isSessionGenerating(sessionId) {
     const sid = String(sessionId);
@@ -971,6 +1037,81 @@ function renderModalSearchResults(filterText = '') {
         searchResultsList.appendChild(itemBtn);
     });
 }
+
+// Pop-up Kontak ("Hubungi kami") untuk mobile & desktop
+function openContactPopup() {
+    if (!contactPopupOverlay) return;
+    contactPopupOverlay.style.display = 'flex';
+    closeSidebarOnMobile();
+}
+
+function closeContactPopup() {
+    if (!contactPopupOverlay) return;
+    contactPopupOverlay.style.display = 'none';
+}
+
+function fallbackCopyText(text) {
+    const temp = document.createElement('textarea');
+    temp.value = text;
+    temp.style.position = 'fixed';
+    temp.style.opacity = '0';
+    document.body.appendChild(temp);
+    temp.select();
+    document.execCommand('copy');
+    document.body.removeChild(temp);
+}
+
+function bindContactCopyButton(btnEl, valueToCopy) {
+    if (!btnEl) return;
+    btnEl.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const onCopied = () => {
+            showClipboardToast("Disalin ke papan klip");
+        };
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(valueToCopy).then(onCopied).catch(() => {
+                fallbackCopyText(valueToCopy);
+                onCopied();
+            });
+        } else {
+            fallbackCopyText(valueToCopy);
+            onCopied();
+        }
+    });
+}
+
+if (btnContact) {
+    btnContact.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openContactPopup();
+    });
+}
+
+if (btnContactMini) {
+    btnContactMini.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openContactPopup();
+    });
+}
+
+if (btnCloseContactPopup) {
+    btnCloseContactPopup.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeContactPopup();
+    });
+}
+
+if (contactPopupOverlay) {
+    contactPopupOverlay.addEventListener('click', (e) => {
+        if (e.target === contactPopupOverlay) {
+            closeContactPopup();
+        }
+    });
+}
+
+bindContactCopyButton(btnCopyContactEmail, 'psylockai.id@gmail.com');
+bindContactCopyButton(btnCopyContactPhone, '+62 881-0277-64047');
 
 function extractCollectionItemsFromSessions() {
     const items = [];
@@ -2354,6 +2495,10 @@ if (btnZoomDeletePhoto) {
 
 document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
+        if (contactPopupOverlay && contactPopupOverlay.style.display === "flex") {
+            closeContactPopup();
+            return;
+        }
         const pdfModal = document.getElementById("pdfPreviewModal");
         if (pdfModal && pdfModal.style.display === "flex") {
             closePdfPreviewModal();
