@@ -49,6 +49,7 @@ const PDF_STORE_NAME = "pdf_files";
 let pdfDbPromise = null;
 
 let clipboardToastTimer = null;
+const PROMPT_DISCLAIMER_TEXT = "Psylock adalah AI yang dapat membuat kesalahan. Periksa informasi penting";
 
 const sendIconSvg = `
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
@@ -725,10 +726,61 @@ function closeSidebarOnMobile() {
     }
 }
 
+function ensurePromptDisclaimer() {
+    const promptBar = document.querySelector('.prompt');
+    if (!promptBar) return null;
+
+    if (!document.getElementById('psylockPromptDisclaimerStyle')) {
+        const style = document.createElement('style');
+        style.id = 'psylockPromptDisclaimerStyle';
+        style.textContent = `
+            .psylock-prompt-disclaimer {
+                width: 100%;
+                box-sizing: border-box;
+                text-align: center;
+                font-size: 11px;
+                line-height: 1.25;
+                color: #64748b;
+                padding: 0 16px 6px;
+                margin: 0;
+                transform: translateY(-4px);
+                user-select: none;
+                flex-shrink: 0;
+            }
+            @media (max-width: 768px) {
+                .psylock-prompt-disclaimer {
+                    font-size: 10px;
+                    line-height: 1.25;
+                    padding: 0 12px 5px;
+                    transform: translateY(-3px);
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    let disclaimer = document.getElementById('psylockPromptDisclaimer');
+    if (!disclaimer) {
+        disclaimer = document.createElement('div');
+        disclaimer.id = 'psylockPromptDisclaimer';
+        disclaimer.className = 'psylock-prompt-disclaimer';
+        disclaimer.textContent = PROMPT_DISCLAIMER_TEXT;
+        promptBar.insertAdjacentElement('afterend', disclaimer);
+    } else if (disclaimer.textContent !== PROMPT_DISCLAIMER_TEXT) {
+        disclaimer.textContent = PROMPT_DISCLAIMER_TEXT;
+    }
+
+    return disclaimer;
+}
+
 function setPromptVisible(isVisible) {
     const promptBar = document.querySelector('.prompt');
+    const disclaimer = ensurePromptDisclaimer();
     if (promptBar) {
         promptBar.style.display = isVisible ? 'flex' : 'none';
+    }
+    if (disclaimer) {
+        disclaimer.style.display = isVisible ? 'block' : 'none';
     }
 }
 
@@ -2696,6 +2748,7 @@ if (btnCloseEditor) {
 window.addEventListener('DOMContentLoaded', () => {
     openPdfDb();
     ensureFileCardStyles();
+    ensurePromptDisclaimer();
     closeSidebarOnMobile();
 
     const savedCollectionTab = localStorage.getItem('psylock_collection_tab');
