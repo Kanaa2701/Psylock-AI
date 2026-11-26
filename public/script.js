@@ -49,6 +49,8 @@ const PDF_STORE_NAME = "pdf_files";
 let pdfDbPromise = null;
 
 let clipboardToastTimer = null;
+let cloudSyncTimer = null;
+let isApplyingRemoteChats = false;
 const PROMPT_DISCLAIMER_TEXT = "Psylock adalah AI yang dapat membuat kesalahan. Periksa informasi penting";
 
 const sendIconSvg = `
@@ -879,13 +881,142 @@ function loadSessionDraft(session) {
     }
 }
 
+function syncSessionToCloud(session) {
+    if (isApplyingRemoteChats) return;
+    if (!session || !Array.isArray(session.messages) || session.messages.length <= 1) return;
+    if (!window.PsylockAuth || typeof window.PsylockAuth.getUser !== "function") return;
+
+    const user = window.PsylockAuth.getUser();
+    if (!user || !user.email) return;
+
+    const payload = {
+        session_id: String(session.id),
+        title: session.title || "Chat Baru",
+        messages: session.messages
+    };
+
+    window.PsylockAuth.saveChat(payload).catch((err) => {
+        console.warn("Gagal menyinkronkan sesi chat ke server:", err);
+    });
+}
+
+function scheduleCloudSyncForCurrentSession() {
+    if (isApplyingRemoteChats) return;
+    if (!window.PsylockAuth || typeof window.PsylockAuth.getUser !== "function") return;
+    const user = window.PsylockAuth.getUser();
+    if (!user || !user.email) return;
+
+    const target = getSessionById(currentSessionId);
+    if (!target || !Array.isArray(target.messages) || target.messages.length <= 1) return;
+
+    if (cloudSyncTimer) clearTimeout(cloudSyncTimer);
+    cloudSyncTimer = setTimeout(() => {
+        syncSessionToCloud(target);
+    }, 250);
+}
+
 function saveSessions() {
     saveCurrentDraft();
     localStorage.setItem('psylock_sessions', JSON.stringify(chatSessions));
     localStorage.setItem('psylock_current_session', currentSessionId);
     localStorage.setItem('psylock_is_collection_view', isCollectionView ? '1' : '0');
     localStorage.setItem('psylock_collection_tab', activeCollectionTab);
+    scheduleCloudSyncForCurrentSession();
 }
+
+function normalizeRemoteChats(remoteList) {
+    if (!Array.isArray(remoteList)) return [];
+    return remoteList
+        .map((item, idx) => {
+            const sid = String(item.session_id || item.id || `cloud_${Date.now()}_${idx}`);
+            const updatedMs = item.updated_at ? Date.parse(item.updated_at) : Date.now() - idx * 1000;
+            const msgs = Array.isArray(item.messages) && item.messages.length > 0
+                ? item.messages
+                : [{ pengirim: 'bot', content: defaultGreeting }];
+            return {
+                id: sid,
+                lastActiveAt: Number.isFinite(updatedMs) ? updatedMs : Date.now() - idx * 1000,
+                title: item.title || 'Percakapan baru',
+                messages: msgs,
+                history: Array.isArray(item.history) ? item.history : [],
+                draft: '',
+                isPinned: false,
+                pendingRequest: null
+            };
+        });
+}
+
+async function syncChatsFromAuth() {
+    if (!window.PsylockAuth || typeof window.PsylockAuth.loadChats !== "function") return;
+
+    try {
+        const user = typeof window.PsylockAuth.getUser === "function" ? window.PsylockAuth.getUser() : null;
+        const loaded = await window.PsylockAuth.loadChats();
+        const normalized = normalizeRemoteChats(loaded);
+
+        isApplyingRemoteChats = true;
+
+        if (user && user.email) {
+            if (normalized.length > 0) {
+                chatSessions = normalized;
+            } else {
+                const freshId = Date.now();
+                chatSessions = [{
+                    id: freshId,
+                    lastActiveAt: freshId,
+                    title: 'Percakapan baru',
+                    messages: [{ pengirim: 'bot', content: defaultGreeting }],
+                    history: [],
+                    draft: '',
+                    isPinned: false,
+                    pendingRequest: null
+                }];
+            }
+            currentSessionId = chatSessions[0].id;
+            localStorage.setItem('psylock_sessions', JSON.stringify(chatSessions));
+            localStorage.setItem('psylock_current_session', currentSessionId);
+        } else {
+            const guestSaved = JSON.parse(localStorage.getItem('psylock_sessions') || 'null');
+            if (Array.isArray(guestSaved) && guestSaved.length > 0) {
+                chatSessions = guestSaved;
+            } else if (normalized.length > 0) {
+                chatSessions = normalized;
+            }
+            if (!getSessionById(currentSessionId) && chatSessions[0]) {
+                currentSessionId = chatSessions[0].id;
+            }
+        }
+
+        const currentS = getSessionById(currentSessionId) || chatSessions[0];
+        if (currentS) {
+            currentSessionId = currentS.id;
+            chatHistory = Array.isArray(currentS.history) ? currentS.history : [];
+            if (!isCollectionView) {
+                renderSessionMessagesIntoDOM(currentS);
+                loadSessionDraft(currentS);
+                chatBox.scrollTop = chatBox.scrollHeight;
+            }
+        }
+
+        renderHistory(searchChatInput ? searchChatInput.value : '');
+        if (isCollectionView) {
+            renderCollectionContent();
+        }
+        syncSendButtonForCurrentSession();
+    } catch (err) {
+        console.warn("Gagal memuat riwayat chat:", err);
+    } finally {
+        isApplyingRemoteChats = false;
+    }
+}
+
+window.addEventListener("psylock:auth-changed", () => {
+    syncChatsFromAuth();
+});
+
+window.addEventListener("psylock:guest-mode", () => {
+    syncChatsFromAuth();
+});
 
 window.addEventListener('beforeunload', () => {
     saveSessions();
@@ -1172,7 +1303,7 @@ function extractCollectionItemsFromSessions() {
         if (!Array.isArray(session.messages)) return;
 
         session.messages.forEach((msg, msgIndex) => {
-            if (!msg || typeof msg.content !== 'string') return;
+            if (!msg || typeof msg.content !== "string") return;
 
             const tempDiv = document.createElement('div');
             if (msg.pengirim === 'bot' && window.marked && !msg.content.includes('<img') && !msg.content.includes('<span>')) {
@@ -1181,7 +1312,6 @@ function extractCollectionItemsFromSessions() {
                 tempDiv.innerHTML = msg.content;
             }
 
-            // 1. Foto (hindari avatar AI)
             const imgs = Array.from(tempDiv.querySelectorAll('img')).filter(
                 (img) => !img.classList.contains('ai-avatar') && img.getAttribute('src')
             );
@@ -1196,7 +1326,6 @@ function extractCollectionItemsFromSessions() {
                 });
             });
 
-            // 2. File dari badge lampiran
             const fileBadges = tempDiv.querySelectorAll('.user-file-badge');
             fileBadges.forEach((badge) => {
                 const titleEl = badge.querySelector('.file-card-title');
@@ -1215,7 +1344,6 @@ function extractCollectionItemsFromSessions() {
                 });
             });
 
-            // 3. Fallback format lama [Mengirim file: nama.ext]
             if (fileBadges.length === 0) {
                 const legacyMatch = msg.content.match(/\[Mengirim file:\s*(.+?)\]/i);
                 if (legacyMatch) {
@@ -1388,7 +1516,6 @@ function renderHistory(filterText = '') {
         (session.title || '').toLowerCase().includes(query)
     );
 
-    // Percakapan terbaru selalu berada di paling atas
     filtered.sort((a, b) => {
         const timeA = Number(a.lastActiveAt || a.id || 0);
         const timeB = Number(b.lastActiveAt || b.id || 0);
@@ -2767,6 +2894,10 @@ window.addEventListener('DOMContentLoaded', () => {
     } else {
         switchSession(currentSessionId, true);
         renderHistory(searchChatInput ? searchChatInput.value : '');
+    }
+
+    if (window.PsylockAuth && typeof window.PsylockAuth.getUser === "function" && window.PsylockAuth.getUser()) {
+        syncChatsFromAuth();
     }
 
     resumePendingRequestsAfterReload();

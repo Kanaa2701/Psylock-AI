@@ -1,0 +1,214 @@
+.psylock-auth-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.35);
+  backdrop-filter: blur(4px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 16px;
+}
+
+.psylock-auth-backdrop.is-open {
+  display: flex;
+}
+
+.psylock-auth-card {
+  width: 100%;
+  max-width: 420px;
+  background: #ffffff;
+  color: #0f172a;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  padding: 28px 24px 24px;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.16);
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.psylock-auth-header {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.psylock-auth-title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.psylock-auth-sub {
+  margin: 8px 0 0;
+  font-size: 0.86rem;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.psylock-auth-field {
+  margin-bottom: 14px;
+}
+
+.psylock-auth-label {
+  display: block;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin-bottom: 6px;
+}
+
+.psylock-auth-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.psylock-auth-input {
+  width: 100%;
+  padding: 11px 42px 11px 13px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #0f172a;
+  font-size: 0.92rem;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.psylock-auth-input:focus {
+  border-color: #1e293b;
+  background: #ffffff;
+}
+
+.psylock-eye-btn {
+  position: absolute;
+  right: 8px;
+  background: transparent;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  padding: 4px 6px;
+  font-size: 0.92rem;
+  line-height: 1;
+}
+
+.psylock-eye-btn:hover {
+  color: #0f172a;
+}
+
+.psylock-auth-meta-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: -6px;
+  margin-bottom: 14px;
+}
+
+.psylock-link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #2563eb;
+  font-size: 0.70rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.psylock-link-btn:hover {
+  text-decoration: underline;
+}
+
+.psylock-auth-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.psylock-btn-primary {
+  width: 100%;
+  padding: 11px 14px;
+  border-radius: 10px;
+  border: none;
+  background: #141b33;
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 0.92rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.psylock-btn-primary:hover:not(:disabled) {
+  background: #0f172a;
+}
+
+.psylock-btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.psylock-btn-secondary {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  font-weight: 500;
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+
+.psylock-btn-secondary:hover {
+  background: #f8fafc;
+}
+
+.psylock-auth-switch-footer {
+  margin-top: 16px;
+  text-align: center;
+  font-size: 0.84rem;
+  color: #64748b;
+}
+
+.psylock-auth-msg {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 0.83rem;
+  display: none;
+}
+
+.psylock-auth-msg.is-visible {
+  display: block;
+}
+
+.psylock-auth-msg.is-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+}
+
+.psylock-auth-msg.is-success {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #15803d;
+}
+
+.psylock-user-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-radius: 10px;
+  background: #f1f5f9;
+  color: #0f172a;
+  border: 1px solid #e2e8f0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.psylock-user-pill:hover {
+  background: #e2e8f0;
+}
