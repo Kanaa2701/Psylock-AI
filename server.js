@@ -9,19 +9,13 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json({ limit: "20mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
-// Urutan model: coba model utama dulu, lalu otomatis pindah ke cadangan jika 503/limit/gangguan
-const MODELS = [
-    "gemini-3.8-flash",
-    "gemini-3.5-flash",
-];
-
-const COOLDOWN_MS = 60 * 1000; // Jeda 60 detik untuk key yang kena limit
-const REQUEST_TIMEOUT_MS = 8500; // Batas waktu per request agar aman di serverless
+const MODEL = "gemini-3.5-flash-lite";
+const COOLDOWN_MS = 60 * 1000; // Jeda 60 detik untuk key yang baru kena limit
 
 function loadApiKeys() {
     const keys = [];
 
-    // Ambil GEMINI_API_KEY_1 sampai GEMINI_API_KEY_30
+    // Ambil GEMINI_API_KEY_1 sampai GEMINI_API_KEY_17 (atau lebih jika ditambah)
     for (let i = 1; i <= 30; i++) {
         const val = process.env[`GEMINI_API_KEY_${i}`];
         if (val && val.trim()) {
@@ -75,24 +69,6 @@ function isLimitError(status, errorMessage = "") {
     );
 }
 
-function isHighDemandOrTransientError(status, errorMessage = "") {
-    const msg = String(errorMessage).toLowerCase();
-    return (
-        status === 503 ||
-        status === 500 ||
-        status === 502 ||
-        status === 504 ||
-        msg.includes("high demand") ||
-        msg.includes("overloaded") ||
-        msg.includes("unavailable") ||
-        msg.includes("temporarily") ||
-        msg.includes("timeout") ||
-        msg.includes("aborted") ||
-        msg.includes("fetch failed") ||
-        msg.includes("network")
-    );
-}
-
 function getNextAvailableKeyIndex() {
     if (API_KEYS.length === 0) return -1;
     const now = Date.now();
@@ -105,68 +81,14 @@ function getNextAvailableKeyIndex() {
         }
     }
 
-    // Jika semua key sedang cooldown, tetap kembalikan key berikutnya sebagai darurat
-    const fallbackIdx = currentKeyIndex % API_KEYS.length;
-    return fallbackIdx;
+    return -1; // Semua API key sedang dalam masa cooldown
 }
 
 function advanceKeyAfterLimit(usedIndex) {
     if (API_KEYS.length === 0) return;
     keyBlockedUntil[usedIndex] = Date.now() + COOLDOWN_MS;
+    // Pindah ke key berikutnya, lalu kembali ke index 0 setelah key terakhir
     currentKeyIndex = (usedIndex + 1) % API_KEYS.length;
-}
-
-function advanceKeyRotation(usedIndex) {
-    if (API_KEYS.length === 0) return;
-    currentKeyIndex = (usedIndex + 1) % API_KEYS.length;
-}
-
-function sleep(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function fetchGeminiWithTimeout(model, apiKey, contents) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-
-    const endpoint =
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
-
-    try {
-        const response = await fetch(endpoint, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ contents }),
-            signal: controller.signal
-        });
-
-        let data = {};
-        try {
-            data = await response.json();
-        } catch {
-            data = {};
-        }
-
-        if (!response.ok) {
-            const message = data.error?.message || `Gemini API request failed (${response.status})`;
-            const error = new Error(message);
-            error.status = response.status;
-            throw error;
-        }
-
-        return data;
-    } catch (error) {
-        if (error.name === "AbortError") {
-            const timeoutErr = new Error("Request ke Gemini melewati batas waktu (timeout)");
-            timeoutErr.status = 504;
-            throw timeoutErr;
-        }
-        throw error;
-    } finally {
-        clearTimeout(timer);
-    }
 }
 
 async function callGemini(contents) {
@@ -175,56 +97,66 @@ async function callGemini(contents) {
     }
 
     let lastError = null;
-    const maxKeyAttempts = Math.min(API_KEYS.length, 6);
+    const maxAttempts = API_KEYS.length;
 
-    // Lakukan maksimal 2 putaran singkat jika semua model/key sedang padat saat presentasi
-    for (let round = 0; round < 2; round++) {
-        for (const model of MODELS) {
-            for (let attempt = 0; attempt < maxKeyAttempts; attempt++) {
-                const keyIndex = getNextAvailableKeyIndex();
-                const activeEntry = API_KEYS[keyIndex];
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const keyIndex = getNextAvailableKeyIndex();
 
-                try {
-                    const data = await fetchGeminiWithTimeout(model, activeEntry.key, contents);
-                    advanceKeyRotation(keyIndex);
-                    return data;
-                } catch (error) {
-                    lastError = error;
-                    const status = error.status || 0;
-                    const msg = error.message || "";
-
-                    if (isLimitError(status, msg)) {
-                        console.warn(
-                            `[${activeEntry.label} | ${model}] kena limit (${status}), pindah key...`
-                        );
-                        advanceKeyAfterLimit(keyIndex);
-                        continue;
-                    }
-
-                    if (isHighDemandOrTransientError(status, msg)) {
-                        console.warn(
-                            `[${activeEntry.label} | ${model}] padat/gangguan (${status}), coba key/model lain...`
-                        );
-                        advanceKeyRotation(keyIndex);
-                        // Jika sudah mencoba beberapa key pada model yang sama dan tetap 503, pindah ke model berikutnya
-                        if (attempt >= 1) {
-                            break;
-                        }
-                        continue;
-                    }
-
-                    // Error non-transient (misalnya format prompt / API key tidak valid)
-                    throw error;
-                }
-            }
+        if (keyIndex === -1) {
+            const err = new Error(
+                `Semua ${API_KEYS.length} API key sedang mencapai batas limit. Coba lagi sebentar.`
+            );
+            err.status = 429;
+            throw err;
         }
 
-        if (round === 0) {
-            await sleep(600);
+        const activeEntry = API_KEYS[keyIndex];
+        const endpoint =
+            `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${encodeURIComponent(activeEntry.key)}`;
+
+        try {
+            const response = await fetch(endpoint, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ contents })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                const message = data.error?.message || "Gemini API request failed";
+                const error = new Error(message);
+                error.status = response.status;
+
+                if (isLimitError(response.status, message)) {
+                    console.warn(
+                        `[${activeEntry.label}] kena limit (${response.status}), pindah ke key berikutnya...`
+                    );
+                    advanceKeyAfterLimit(keyIndex);
+                    lastError = error;
+                    continue;
+                }
+
+                throw error;
+            }
+
+            return data;
+        } catch (error) {
+            lastError = error;
+            if (isLimitError(error.status || 0, error.message)) {
+                console.warn(
+                    `[${activeEntry.label}] terdeteksi limit, pindah ke key berikutnya...`
+                );
+                advanceKeyAfterLimit(keyIndex);
+                continue;
+            }
+            throw error;
         }
     }
 
-    throw lastError || new Error("Gagal memanggil Gemini API setelah mencoba beberapa key dan model");
+    throw lastError || new Error("Gagal memanggil Gemini API setelah mencoba semua key");
 }
 
 app.post("/api/chat", async (req, res) => {
