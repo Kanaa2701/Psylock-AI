@@ -11,6 +11,7 @@ app.use(express.static(path.join(__dirname, "public")));
 
 const MODEL = "gemini-3.5-flash-lite";
 const COOLDOWN_MS = 60 * 1000; // Jeda 60 detik untuk key yang baru kena limit
+const REQUEST_TIMEOUT_MS = 8500; // Batas waktu per request agar aman di serverless
 
 function loadApiKeys() {
     const keys = [];
@@ -91,7 +92,27 @@ function advanceKeyAfterLimit(usedIndex) {
     currentKeyIndex = (usedIndex + 1) % API_KEYS.length;
 }
 
-async function callGemini(contents) {
+function extractTextFromResponse(data) {
+    const parts = data?.candidates?.[0]?.content?.parts;
+    if (!Array.isArray(parts)) return "";
+    return parts
+        .map((part) => (typeof part.text === "string" ? part.text : ""))
+        .join("");
+}
+
+function isLikelyTruncated(data, text) {
+    const finishReason = data?.candidates?.[0]?.finishReason;
+    if (finishReason === "MAX_TOKENS") return true;
+
+    const trimmed = String(text || "").trim();
+    if (!trimmed) return false;
+
+    // Jika tidak diakhiri tanda baca penutup kalimat/blok, kemungkinan terpotong di tengah
+    const endsCleanly = /[.!?…"'`)\]]$/.test(trimmed);
+    return !endsCleanly && trimmed.length >= 25;
+}
+
+async function fetchGeminiOnce(contents) {
     if (API_KEYS.length === 0) {
         throw new Error("Tidak ada API key Gemini yang dikonfigurasi di .env");
     }
@@ -114,13 +135,22 @@ async function callGemini(contents) {
         const endpoint =
             `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${encodeURIComponent(activeEntry.key)}`;
 
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
         try {
             const response = await fetch(endpoint, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json"
                 },
-                body: JSON.stringify({ contents })
+                body: JSON.stringify({
+                    contents,
+                    generationConfig: {
+                        maxOutputTokens: 4096
+                    }
+                }),
+                signal: controller.signal
             });
 
             const data = await response.json();
@@ -142,8 +172,15 @@ async function callGemini(contents) {
                 throw error;
             }
 
+            currentKeyIndex = (keyIndex + 1) % API_KEYS.length;
             return data;
         } catch (error) {
+            if (error.name === "AbortError") {
+                const timeoutErr = new Error("Request ke Gemini melewati batas waktu (timeout)");
+                timeoutErr.status = 504;
+                throw timeoutErr;
+            }
+
             lastError = error;
             if (isLimitError(error.status || 0, error.message)) {
                 console.warn(
@@ -153,10 +190,72 @@ async function callGemini(contents) {
                 continue;
             }
             throw error;
+        } finally {
+            clearTimeout(timer);
         }
     }
 
     throw lastError || new Error("Gagal memanggil Gemini API setelah mencoba semua key");
+}
+
+async function callGemini(contents, { allowAutoContinue = true } = {}) {
+    const firstData = await fetchGeminiOnce(contents);
+    const firstText = extractTextFromResponse(firstData);
+
+    if (!allowAutoContinue || !isLikelyTruncated(firstData, firstText)) {
+        return firstData;
+    }
+
+    try {
+        const continuationContents = [
+            ...contents,
+            {
+                role: "model",
+                parts: [{ text: firstText }]
+            },
+            {
+                role: "user",
+                parts: [
+                    {
+                        text: "Lanjutkan jawabanmu tepat dari kata terakhir yang terpotong tanpa mengulang bagian sebelumnya."
+                    }
+                ]
+            }
+        ];
+
+        const secondData = await fetchGeminiOnce(continuationContents);
+        const secondText = extractTextFromResponse(secondData);
+
+        if (!secondText.trim()) {
+            return firstData;
+        }
+
+        const needsSpace =
+            !/\s$/.test(firstText) &&
+            !/^\s/.test(secondText) &&
+            !/^[,.!?;:)\]]/.test(secondText);
+
+        const combinedText = `${firstText}${needsSpace ? " " : ""}${secondText.trimStart()}`;
+
+        const mergedData = {
+            ...firstData,
+            candidates: [
+                {
+                    ...firstData.candidates[0],
+                    content: {
+                        ...(firstData.candidates[0]?.content || { role: "model" }),
+                        parts: [{ text: combinedText }]
+                    },
+                    finishReason: secondData?.candidates?.[0]?.finishReason || "STOP"
+                }
+            ]
+        };
+
+        return mergedData;
+    } catch (continuationError) {
+        console.warn("Auto-continue gagal, mengembalikan respons awal:", continuationError.message);
+        return firstData;
+    }
 }
 
 app.post("/api/chat", async (req, res) => {
@@ -169,7 +268,7 @@ app.post("/api/chat", async (req, res) => {
             });
         }
 
-        const result = await callGemini(contents);
+        const result = await callGemini(contents, { allowAutoContinue: true });
         res.json(result);
 
     } catch (error) {
@@ -204,12 +303,15 @@ Jawab HANYA dengan teks deskripsi bahasa Inggrisnya saja
 tanpa tanda kutip atau teks tambahan.
 `;
 
-        const result = await callGemini([
-            {
-                role: "user",
-                parts: [{ text: promptInstruksi }]
-            }
-        ]);
+        const result = await callGemini(
+            [
+                {
+                    role: "user",
+                    parts: [{ text: promptInstruksi }]
+                }
+            ],
+            { allowAutoContinue: false }
+        );
 
         res.json(result);
 
