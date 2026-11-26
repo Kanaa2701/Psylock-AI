@@ -141,7 +141,10 @@ function isCreatorQuestion(text) {
     return (
         normalized.includes("pencipta") ||
         normalized.includes("menciptakan") ||
+        normalized.includes("diciptakan") ||
         normalized.includes("pembuat") ||
+        normalized.includes("dibuat oleh") ||
+        normalized.includes("dibikin oleh") ||
         normalized.includes("siapa yang buat") ||
         normalized.includes("siapa yang bikin") ||
         normalized.includes("siapa yang menciptakan")
