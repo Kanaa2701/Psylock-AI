@@ -11,10 +11,8 @@ app.use(express.static(path.join(__dirname, "public")));
 
 // Urutan model: coba model utama dulu, lalu otomatis pindah ke cadangan jika 503/limit/gangguan
 const MODELS = [
+    "gemini-3.8-flash",
     "gemini-3.5-flash",
-    "gemini-2.5-flash",
-    "gemini-2.5-flash-lite",
-    "gemini-2.0-flash"
 ];
 
 const COOLDOWN_MS = 60 * 1000; // Jeda 60 detik untuk key yang kena limit
