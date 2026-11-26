@@ -13,6 +13,16 @@ const MODEL = "gemini-3.5-flash-lite";
 const COOLDOWN_MS = 60 * 1000; // Jeda 60 detik untuk key yang baru kena limit
 const REQUEST_TIMEOUT_MS = 8500; // Batas waktu per request agar aman di serverless
 
+const CREATOR_RESPONSES = [
+    "Psylock AI diciptakan oleh tim dari SMKN 1 Surabaya, yaitu Abdul Rahman Syahid, Ahmad Abyan Rasyad, Bagaskoro Satrio Wicaksono, Djibril Arkana Arisyahputra, dan Yudesar Natanael Dwiputra. Tim tersebutlah yang merancang dan mengembangkan Psylock AI sebagai asisten AI yang inovatif.",
+    `Psylock AI dibuat oleh tim dari SMKN 1 Surabaya. Tim tersebut terdiri dari:
+•Abdul Rahman Syahid
+•Ahmad Abyan Rasyad
+•Bagaskoro Satrio Wicaksono
+•Djibril Arkana Arisyahputra
+•Yudesar Natanael Dwiputra`
+];
+
 function loadApiKeys() {
     const keys = [];
 
@@ -110,6 +120,46 @@ function isLikelyTruncated(data, text) {
     // Jika tidak diakhiri tanda baca penutup kalimat/blok, kemungkinan terpotong di tengah
     const endsCleanly = /[.!?…"'`)\]]$/.test(trimmed);
     return !endsCleanly && trimmed.length >= 25;
+}
+
+function getLatestUserText(contents) {
+    if (!Array.isArray(contents)) return "";
+    for (let i = contents.length - 1; i >= 0; i--) {
+        const item = contents[i];
+        if (item?.role === "user" && Array.isArray(item.parts)) {
+            return item.parts
+                .map((p) => (typeof p?.text === "string" ? p.text : ""))
+                .join(" ")
+                .trim();
+        }
+    }
+    return "";
+}
+
+function isCreatorQuestion(text) {
+    const normalized = String(text || "").toLowerCase();
+    return (
+        normalized.includes("pencipta") ||
+        normalized.includes("menciptakan") ||
+        normalized.includes("pembuat") ||
+        normalized.includes("siapa yang buat") ||
+        normalized.includes("siapa yang bikin") ||
+        normalized.includes("siapa yang menciptakan")
+    );
+}
+
+function buildDirectGeminiResponse(text) {
+    return {
+        candidates: [
+            {
+                content: {
+                    role: "model",
+                    parts: [{ text }]
+                },
+                finishReason: "STOP"
+            }
+        ]
+    };
 }
 
 async function fetchGeminiOnce(contents) {
@@ -266,6 +316,12 @@ app.post("/api/chat", async (req, res) => {
             return res.status(400).json({
                 error: "Format contents tidak valid"
             });
+        }
+
+        const latestUserText = getLatestUserText(contents);
+        if (isCreatorQuestion(latestUserText)) {
+            const randomIndex = Math.floor(Math.random() * CREATOR_RESPONSES.length);
+            return res.json(buildDirectGeminiResponse(CREATOR_RESPONSES[randomIndex]));
         }
 
         const result = await callGemini(contents, { allowAutoContinue: true });

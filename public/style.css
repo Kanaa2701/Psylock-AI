@@ -440,6 +440,7 @@ body {
   border-radius: 16px;
   line-height: 1.5;
   word-wrap: break-word;
+  white-space: pre-line;
 }
 
 .user {
@@ -500,6 +501,7 @@ body {
   position: relative;
   min-width: 220px;
   max-width: 80%;
+  white-space: pre-line;
 }
 
 .bot.has-copy-btn {
@@ -1691,7 +1693,7 @@ body {
         font-size: 13px;
     }
 
-    #deleteModalOverlay > div {
+    #imageEditorModal > div {
         width: calc(100% - 40px) !important;
         max-width: 320px;
         padding: 20px !important;
