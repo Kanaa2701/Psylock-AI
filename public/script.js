@@ -848,8 +848,21 @@ if (btnScrollBottom) {
 const defaultGreeting = "Halo, aku Psylock<br>Ada yang bisa aku bantu?";
 const initialTimestamp = Date.now();
 
+function createEmptySession(customId = Date.now()) {
+    return {
+        id: customId,
+        lastActiveAt: customId,
+        title: 'Percakapan baru',
+        messages: [{ pengirim: 'bot', content: defaultGreeting }],
+        history: [],
+        draft: '',
+        isPinned: false,
+        pendingRequest: null
+    };
+}
+
 let chatSessions = JSON.parse(localStorage.getItem('psylock_sessions')) || [
-    { id: initialTimestamp, lastActiveAt: initialTimestamp, title: 'Percakapan baru', messages: [{ pengirim: 'bot', content: defaultGreeting }], history: [], draft: '', isPinned: false, pendingRequest: null }
+    createEmptySession(initialTimestamp)
 ];
 let currentSessionId = localStorage.getItem('psylock_current_session') || chatSessions[0]?.id || initialTimestamp;
 
@@ -918,7 +931,7 @@ function scheduleCloudSyncForCurrentSession() {
 function saveSessions() {
     saveCurrentDraft();
     localStorage.setItem('psylock_sessions', JSON.stringify(chatSessions));
-    localStorage.setItem('psylock_current_session', currentSessionId);
+    localStorage.setItem('psylock_current_session', String(currentSessionId));
     localStorage.setItem('psylock_is_collection_view', isCollectionView ? '1' : '0');
     localStorage.setItem('psylock_collection_tab', activeCollectionTab);
     scheduleCloudSyncForCurrentSession();
@@ -946,45 +959,53 @@ function normalizeRemoteChats(remoteList) {
         });
 }
 
-async function syncChatsFromAuth() {
+async function syncChatsFromAuth(eventDetail = null) {
     if (!window.PsylockAuth || typeof window.PsylockAuth.loadChats !== "function") return;
 
     try {
         const user = typeof window.PsylockAuth.getUser === "function" ? window.PsylockAuth.getUser() : null;
-        const loaded = await window.PsylockAuth.loadChats();
-        const normalized = normalizeRemoteChats(loaded);
+        const isLogoutTransition = Boolean(eventDetail && eventDetail.user === null);
 
         isApplyingRemoteChats = true;
 
         if (user && user.email) {
+            const loaded = await window.PsylockAuth.loadChats();
+            const normalized = normalizeRemoteChats(loaded);
+
             if (normalized.length > 0) {
                 chatSessions = normalized;
             } else {
-                const freshId = Date.now();
-                chatSessions = [{
-                    id: freshId,
-                    lastActiveAt: freshId,
-                    title: 'Percakapan baru',
-                    messages: [{ pengirim: 'bot', content: defaultGreeting }],
-                    history: [],
-                    draft: '',
-                    isPinned: false,
-                    pendingRequest: null
-                }];
+                chatSessions = [createEmptySession(Date.now())];
             }
             currentSessionId = chatSessions[0].id;
+            chatHistory = Array.isArray(chatSessions[0].history) ? chatSessions[0].history : [];
             localStorage.setItem('psylock_sessions', JSON.stringify(chatSessions));
-            localStorage.setItem('psylock_current_session', currentSessionId);
+            localStorage.setItem('psylock_current_session', String(currentSessionId));
         } else {
-            const guestSaved = JSON.parse(localStorage.getItem('psylock_sessions') || 'null');
-            if (Array.isArray(guestSaved) && guestSaved.length > 0) {
-                chatSessions = guestSaved;
-            } else if (normalized.length > 0) {
-                chatSessions = normalized;
-            }
-            if (!getSessionById(currentSessionId) && chatSessions[0]) {
+            const guestLoaded = await window.PsylockAuth.loadChats();
+            const normalizedGuest = normalizeRemoteChats(guestLoaded);
+
+            if (isLogoutTransition) {
+                const freshGuestSession = createEmptySession(Date.now());
+                chatSessions = [freshGuestSession];
+                currentSessionId = freshGuestSession.id;
+                chatHistory = [];
+                isCollectionView = false;
+                setPromptVisible(true);
+            } else if (normalizedGuest.length > 0) {
+                chatSessions = normalizedGuest;
                 currentSessionId = chatSessions[0].id;
+                chatHistory = Array.isArray(chatSessions[0].history) ? chatSessions[0].history : [];
+            } else {
+                const freshGuestSession = createEmptySession(Date.now());
+                chatSessions = [freshGuestSession];
+                currentSessionId = freshGuestSession.id;
+                chatHistory = [];
             }
+
+            localStorage.setItem('psylock_sessions', JSON.stringify(chatSessions));
+            localStorage.setItem('psylock_current_session', String(currentSessionId));
+            localStorage.setItem('psylock_is_collection_view', isCollectionView ? '1' : '0');
         }
 
         const currentS = getSessionById(currentSessionId) || chatSessions[0];
@@ -1010,12 +1031,12 @@ async function syncChatsFromAuth() {
     }
 }
 
-window.addEventListener("psylock:auth-changed", () => {
-    syncChatsFromAuth();
+window.addEventListener("psylock:auth-changed", (e) => {
+    syncChatsFromAuth(e.detail || null);
 });
 
 window.addEventListener("psylock:guest-mode", () => {
-    syncChatsFromAuth();
+    syncChatsFromAuth({ user: null });
 });
 
 window.addEventListener('beforeunload', () => {
@@ -1815,7 +1836,7 @@ if (btnConfirmDelete) {
 
         if (chatSessions.length <= 1) {
             const freshId = Date.now();
-            chatSessions = [{ id: freshId, lastActiveAt: freshId, title: 'Percakapan baru', messages: [{ pengirim: 'bot', content: defaultGreeting }], history: [], draft: '', isPinned: false, pendingRequest: null }];
+            chatSessions = [createEmptySession(freshId)];
             currentSessionId = chatSessions[0].id;
             chatHistory = [];
             chatBox.innerHTML = `<div class="pesan-wrapper bot-wrapper"><img src="avatar.jpeg" class="ai-avatar"><div class="pesan bot">${defaultGreeting}</div></div>`;
@@ -1894,16 +1915,7 @@ if (btnNewChat) {
             0
         );
         const newSessionId = Math.max(Date.now(), maxExistingTime + 1);
-        const newSession = {
-            id: newSessionId,
-            lastActiveAt: newSessionId,
-            title: 'Percakapan baru',
-            messages: [{ pengirim: 'bot', content: defaultGreeting }],
-            history: [],
-            draft: '',
-            isPinned: false,
-            pendingRequest: null
-        };
+        const newSession = createEmptySession(newSessionId);
         chatSessions.unshift(newSession);
         currentSessionId = newSession.id;
         chatHistory = [];
@@ -2872,7 +2884,7 @@ if (btnCloseEditor) {
     btnCloseEditor.addEventListener("click", closeImageEditor);
 }
 
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
     openPdfDb();
     ensureFileCardStyles();
     ensurePromptDisclaimer();
@@ -2883,21 +2895,28 @@ window.addEventListener('DOMContentLoaded', () => {
         activeCollectionTab = savedCollectionTab;
     }
 
-    const shouldStayInCollection = localStorage.getItem('psylock_is_collection_view') === '1';
-    if (shouldStayInCollection) {
-        isCollectionView = true;
-        renderCollectionContent();
-        setPromptVisible(false);
-        syncSidebarActiveStates();
-        renderHistory(searchChatInput ? searchChatInput.value : '');
-        syncSendButtonForCurrentSession();
-    } else {
-        switchSession(currentSessionId, true);
-        renderHistory(searchChatInput ? searchChatInput.value : '');
-    }
+    const currentUser = window.PsylockAuth && typeof window.PsylockAuth.getUser === "function"
+        ? window.PsylockAuth.getUser()
+        : null;
 
-    if (window.PsylockAuth && typeof window.PsylockAuth.getUser === "function" && window.PsylockAuth.getUser()) {
-        syncChatsFromAuth();
+    if (currentUser && currentUser.email) {
+        const shouldStayInCollection = localStorage.getItem('psylock_is_collection_view') === '1';
+        if (shouldStayInCollection) {
+            isCollectionView = true;
+            renderCollectionContent();
+            setPromptVisible(false);
+            syncSidebarActiveStates();
+            renderHistory(searchChatInput ? searchChatInput.value : '');
+            syncSendButtonForCurrentSession();
+        } else {
+            switchSession(currentSessionId, true);
+            renderHistory(searchChatInput ? searchChatInput.value : '');
+        }
+        await syncChatsFromAuth({ user: currentUser });
+    } else {
+        isCollectionView = false;
+        setPromptVisible(true);
+        await syncChatsFromAuth({ user: null });
     }
 
     resumePendingRequestsAfterReload();
