@@ -107,6 +107,30 @@ const stopIconSvg = `
     </svg>
 `;
 
+function resetScrollBottomState() {
+    userIsScrollingUp = false;
+    if (btnScrollBottom) {
+        btnScrollBottom.style.display = "none";
+    }
+}
+
+function syncScrollBottomButton() {
+    if (!btnScrollBottom) return;
+
+    if (isCollectionView || !chatBox) {
+        resetScrollBottomState();
+        return;
+    }
+
+    const threshold = 100;
+    const distanceFromBottom = chatBox.scrollHeight - chatBox.scrollTop - chatBox.clientHeight;
+    const hasOverflow = chatBox.scrollHeight > chatBox.clientHeight + threshold;
+    const isScrolledUp = hasOverflow && distanceFromBottom > threshold;
+
+    userIsScrollingUp = isScrolledUp;
+    btnScrollBottom.style.display = isScrolledUp ? "flex" : "none";
+}
+
 // --- Modal Pop-up Login ---
 function openLoginModal() {
     closeUserMoreMenu();
@@ -967,6 +991,7 @@ function showUnsupportedFileNotice(rejectedNames = []) {
         }
         setTimeout(() => {
             notice.remove();
+            syncScrollBottomButton();
         }, 4000);
     } else {
         alert(msg);
@@ -1365,23 +1390,14 @@ if (mainContainer) {
 }
 
 chatBox.addEventListener("scroll", () => {
-    const threshold = 100;
-    const distanceFromBottom = chatBox.scrollHeight - chatBox.scrollTop - chatBox.clientHeight;
-    
-    if (distanceFromBottom > threshold) {
-        userIsScrollingUp = true;
-        if (btnScrollBottom) btnScrollBottom.style.display = "flex";
-    } else {
-        userIsScrollingUp = false;
-        if (btnScrollBottom) btnScrollBottom.style.display = "none";
-    }
+    syncScrollBottomButton();
 });
 
 if (btnScrollBottom) {
     btnScrollBottom.addEventListener("click", () => {
+        if (!chatBox) return;
         chatBox.scrollTop = chatBox.scrollHeight;
-        userIsScrollingUp = false;
-        btnScrollBottom.style.display = "none";
+        resetScrollBottomState();
     });
 }
 
@@ -1580,12 +1596,14 @@ async function syncChatsFromAuth(eventDetail = null) {
                 renderSessionMessagesIntoDOM(currentS);
                 loadSessionDraft(currentS);
                 chatBox.scrollTop = chatBox.scrollHeight;
+                resetScrollBottomState();
             }
         }
 
         renderHistory(searchChatInput ? searchChatInput.value : '');
         if (isCollectionView) {
             renderCollectionContent();
+            resetScrollBottomState();
         }
         syncSendButtonForCurrentSession();
     } catch (err) {
@@ -2028,6 +2046,8 @@ function renderCollectionContent() {
         </div>
     `;
 
+    resetScrollBottomState();
+
     chatBox.querySelectorAll('.collection-tab-btn').forEach((btn) => {
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -2069,6 +2089,7 @@ function openCollection() {
     }
 
     renderCollectionContent();
+    resetScrollBottomState();
     setPromptVisible(false);
     syncSidebarActiveStates();
     syncSendButtonForCurrentSession();
@@ -2409,6 +2430,7 @@ if (btnConfirmDelete) {
             currentSessionId = chatSessions[0].id;
             chatHistory = [];
             chatBox.innerHTML = `<div class="pesan-wrapper bot-wrapper"><img src="avatar.jpeg" class="ai-avatar"><div class="pesan bot">${defaultGreeting}</div></div>`;
+            resetScrollBottomState();
             loadSessionDraft(chatSessions[0]);
             setPromptVisible(true);
             saveSessions();
@@ -2452,6 +2474,7 @@ if (btnNewChat) {
                 prompt.style.height = currentHeight || 'auto';
                 prompt.focus();
             }
+            resetScrollBottomState();
             saveSessions();
             if (btnCollection) btnCollection.classList.remove('active');
             setPromptVisible(true);
@@ -2468,6 +2491,7 @@ if (btnNewChat) {
             touchSessionToTop(existingPending);
             chatHistory = existingPending.history || [];
             chatBox.innerHTML = `<div class="pesan-wrapper bot-wrapper"><img src="avatar.jpeg" class="ai-avatar"><div class="pesan bot">${defaultGreeting}</div></div>`;
+            resetScrollBottomState();
             loadSessionDraft(existingPending);
             saveSessions();
             if (btnCollection) btnCollection.classList.remove('active');
@@ -2494,6 +2518,7 @@ if (btnNewChat) {
 
         if (btnCollection) btnCollection.classList.remove('active');
         chatBox.innerHTML = `<div class="pesan-wrapper bot-wrapper"><img src="avatar.jpeg" class="ai-avatar"><div class="pesan bot">${defaultGreeting}</div></div>`;
+        resetScrollBottomState();
         setPromptVisible(true);
         syncSendButtonForCurrentSession();
         closeSidebarOnMobile();
@@ -2533,6 +2558,7 @@ function switchSession(id, preserveDraft = false) {
         renderSessionMessagesIntoDOM(session);
         loadSessionDraft(session);
         chatBox.scrollTop = chatBox.scrollHeight;
+        resetScrollBottomState();
     }
     saveSessions();
     setPromptVisible(true);
@@ -2592,6 +2618,9 @@ function showTypingForSession(targetSessionId) {
         }
         if (!userIsScrollingUp) {
             chatBox.scrollTop = chatBox.scrollHeight;
+            resetScrollBottomState();
+        } else {
+            syncScrollBottomButton();
         }
     }
     return waiting;
@@ -2606,6 +2635,7 @@ function removeTypingForSession(targetSessionId) {
     }
     if (!isCollectionView && String(currentSessionId) === sid) {
         chatBox.querySelectorAll(".pesan-wrapper.bot-wrapper.typing").forEach((el) => el.remove());
+        syncScrollBottomButton();
     }
 }
 
@@ -2737,11 +2767,15 @@ function displayMessageToDOM(pengirim, chat, saveToSession = true, targetSession
         chatBox.appendChild(containerEl);
     }
 
-    if (!userIsScrollingUp) {
-        chatBox.scrollTop = chatBox.scrollHeight; 
-    } else {
-        if (btnScrollBottom && pengirim === "bot") {
-            btnScrollBottom.style.display = "flex";
+    if (saveToSession && String(targetSessionId) === String(currentSessionId) && !isCollectionView) {
+        if (pengirim === "user") {
+            chatBox.scrollTop = chatBox.scrollHeight;
+            resetScrollBottomState();
+        } else if (!userIsScrollingUp) {
+            chatBox.scrollTop = chatBox.scrollHeight;
+            resetScrollBottomState();
+        } else {
+            syncScrollBottomButton();
         }
     }
 
@@ -3037,6 +3071,7 @@ function keepChatVisibleOnKeyboard() {
     setTimeout(() => {
         if (!userIsScrollingUp) {
             chatBox.scrollTop = chatBox.scrollHeight;
+            resetScrollBottomState();
         }
     }, 150);
 }
@@ -3470,6 +3505,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     closeUserMoreMenu();
     closeLoginModal();
     closeSettingsModal();
+    resetScrollBottomState();
 
     const savedTheme = localStorage.getItem(THEME_STORAGE_KEY) || "light";
     applyThemeMode(savedTheme, false);
@@ -3493,6 +3529,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (shouldStayInCollection) {
         isCollectionView = true;
         renderCollectionContent();
+        resetScrollBottomState();
         setPromptVisible(false);
         syncSidebarActiveStates();
         renderHistory(searchChatInput ? searchChatInput.value : '');
