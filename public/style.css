@@ -201,7 +201,6 @@ body {
   background: #faf8f5;
 }
 
-/* Footer Profil & Menu Titik Tiga di Sidebar */
 .sidebar-footer-profile {
   position: relative;
   padding: 10px 12px 14px 12px;
@@ -342,7 +341,6 @@ body {
   background: rgba(220, 38, 38, 0.08);
 }
 
-/* Modal Pengaturan (Pribadi & Tampilan) */
 .psylock-modal-overlay {
   position: fixed;
   inset: 0;
@@ -618,7 +616,6 @@ body {
   line-height: 1.35;
 }
 
-/* Modal Pop-up Login Psylock AI (Seperti Foto Kedua) */
 .psylock-login-overlay {
   position: fixed;
   inset: 0;
@@ -990,7 +987,6 @@ body.dark-theme .theme-option-card.active {
   align-items: stretch;
 }
 
-/* Tampilan Menu Koleksi (Semua, Foto, File) */
 .collection-view-container {
   width: 100%;
   max-width: 900px;
@@ -1097,7 +1093,6 @@ body.dark-theme .theme-option-card.active {
   color: #64748b;
 }
 
-/* Modal Zoom Foto (Silang di Kiri, Sampah & Percakapan di Kanan) */
 .image-zoom-modal {
   position: fixed;
   inset: 0;
@@ -1254,7 +1249,6 @@ body.dark-theme .theme-option-card.active {
   opacity: 0.9;
 }
 
-/* Ukuran bubble chat AI dikunci konsisten di semua ukuran layar */
 .pesan.bot {
   display: block;
   width: 560px;
@@ -1642,7 +1636,6 @@ body.dark-theme .theme-option-card.active {
   100% { transform: scaleY(1.6); }
 }
 
-/* Item Riwayat Chat */
 .history-item-wrapper {
   display: flex;
   align-items: center;

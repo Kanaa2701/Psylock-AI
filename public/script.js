@@ -32,7 +32,6 @@ const btnCloseContactPopup = document.getElementById('btnCloseContactPopup');
 const btnCopyContactEmail  = document.getElementById('btnCopyContactEmail');
 const btnCopyContactPhone  = document.getElementById('btnCopyContactPhone');
 
-// Elemen Profil, Menu Titik Tiga, Modal Pengaturan, & Modal Login
 const sidebarUserAvatar    = document.getElementById('sidebarUserAvatar');
 const sidebarUserName      = document.getElementById('sidebarUserName');
 const sidebarUserEmail     = document.getElementById('sidebarUserEmail');
@@ -70,10 +69,10 @@ const btnThemeDark          = document.getElementById('btnThemeDark');
 const btnScrollBottom      = document.getElementById("btnScrollBottom");
 let userIsScrollingUp      = false;
 let isCollectionView       = false;
-let activeCollectionTab    = 'all'; // 'all' | 'photo' | 'file'
+let activeCollectionTab    = 'all'; 
 
-const sessionControllers = new Map(); // sessionId -> AbortController
-const sessionTypingNodes = new Map(); // sessionId -> single DOM element
+const sessionControllers = new Map();
+const sessionTypingNodes = new Map();
 
 const pdfFileRegistry = new Map();
 let pendingDeletePdfMeta = null;
@@ -131,7 +130,6 @@ function syncScrollBottomButton() {
     btnScrollBottom.style.display = isScrolledUp ? "flex" : "none";
 }
 
-// --- Modal Pop-up Login ---
 function openLoginModal() {
     closeUserMoreMenu();
     closeSettingsModal();
@@ -251,7 +249,6 @@ if (btnRegisterNow && loginModalStatus) {
     });
 }
 
-// --- Tema, Status Login/Tamu, & Profil + Integrasi Supabase (psylock_users) ---
 function isUserLoggedIn() {
     if (window.PsylockAuth && typeof window.PsylockAuth.getUser === "function") {
         const u = window.PsylockAuth.getUser();
@@ -1379,7 +1376,6 @@ function syncSidebarActiveStates() {
     });
 }
 
-// Tutup sidebar saat menekan area sebelah kanan (di luar sidebar) — khusus HP saja
 const mainContainer = document.querySelector('.container');
 if (mainContainer) {
     mainContainer.addEventListener('click', () => {
@@ -1829,7 +1825,6 @@ function renderModalSearchResults(filterText = '') {
     });
 }
 
-// Pop-up Kontak ("Hubungi kami") untuk mobile & desktop
 function openContactPopup() {
     if (!contactPopupOverlay) return;
     contactPopupOverlay.style.display = 'flex';
