@@ -32,6 +32,41 @@ const btnCloseContactPopup = document.getElementById('btnCloseContactPopup');
 const btnCopyContactEmail  = document.getElementById('btnCopyContactEmail');
 const btnCopyContactPhone  = document.getElementById('btnCopyContactPhone');
 
+// Elemen Profil, Menu Titik Tiga, Modal Pengaturan, & Modal Login
+const sidebarUserAvatar    = document.getElementById('sidebarUserAvatar');
+const sidebarUserName      = document.getElementById('sidebarUserName');
+const sidebarUserEmail     = document.getElementById('sidebarUserEmail');
+const btnUserMoreMenu      = document.getElementById('btnUserMoreMenu');
+const userMoreMenu         = document.getElementById('userMoreMenu');
+const btnOpenSettingsModal = document.getElementById('btnOpenSettingsModal');
+const btnLogoutAccount     = document.getElementById('btnLogoutAccount');
+
+const psylockLoginModal    = document.getElementById('psylockLoginModal');
+const btnCloseLoginModal   = document.getElementById('btnCloseLoginModal');
+const psylockLoginForm     = document.getElementById('psylockLoginForm');
+const loginEmailInput      = document.getElementById('loginEmailInput');
+const loginPasswordInput   = document.getElementById('loginPasswordInput');
+const btnToggleLoginPassword = document.getElementById('btnToggleLoginPassword');
+const btnForgotPassword    = document.getElementById('btnForgotPassword');
+const btnSendOtpLogin      = document.getElementById('btnSendOtpLogin');
+const btnContinueGuest     = document.getElementById('btnContinueGuest');
+const loginModalStatus     = document.getElementById('loginModalStatus');
+const btnRegisterNow       = document.getElementById('btnRegisterNow');
+
+const psylockSettingsModal  = document.getElementById('psylockSettingsModal');
+const btnCloseSettingsModal = document.getElementById('btnCloseSettingsModal');
+const tabSettingsPribadi    = document.getElementById('tabSettingsPribadi');
+const tabSettingsTampilan   = document.getElementById('tabSettingsTampilan');
+const panelSettingsPribadi  = document.getElementById('panelSettingsPribadi');
+const panelSettingsTampilan = document.getElementById('panelSettingsTampilan');
+const avatarPresetList      = document.getElementById('avatarPresetList');
+const inputFullName         = document.getElementById('inputFullName');
+const inputUserEmail        = document.getElementById('inputUserEmail');
+const btnSavePribadi        = document.getElementById('btnSavePribadi');
+const pribadiSavedFeedback  = document.getElementById('pribadiSavedFeedback');
+const btnThemeLight         = document.getElementById('btnThemeLight');
+const btnThemeDark          = document.getElementById('btnThemeDark');
+
 const btnScrollBottom      = document.getElementById("btnScrollBottom");
 let userIsScrollingUp      = false;
 let isCollectionView       = false;
@@ -53,6 +88,12 @@ let cloudSyncTimer = null;
 let isApplyingRemoteChats = false;
 const PROMPT_DISCLAIMER_TEXT = "Psylock adalah AI yang dapat membuat kesalahan. Periksa informasi penting";
 
+const DEFAULT_AVATAR_URL = "https://api.dicebear.com/9.x/bottts/svg?seed=Psylock1";
+const PROFILE_STORAGE_KEY = "psylock_profile_prefs";
+const THEME_STORAGE_KEY = "psylock_theme_mode";
+
+let selectedAvatarUrl = DEFAULT_AVATAR_URL;
+
 const sendIconSvg = `
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
         <line x1="12" y1="19" x2="12" y2="5"></line>
@@ -65,6 +106,473 @@ const stopIconSvg = `
         <rect x="5" y="5" width="14" height="14" rx="2.5"></rect>
     </svg>
 `;
+
+// --- Modal Pop-up Login ---
+function openLoginModal() {
+    closeUserMoreMenu();
+    closeSettingsModal();
+    closeContactPopup();
+
+    if (window.PsylockAuth && typeof window.PsylockAuth.openLoginModal === "function") {
+        window.PsylockAuth.openLoginModal();
+    } else if (window.PsylockAuth && typeof window.PsylockAuth.showAuthModal === "function") {
+        window.PsylockAuth.showAuthModal();
+    }
+
+    if (psylockLoginModal) {
+        psylockLoginModal.hidden = false;
+        psylockLoginModal.style.display = "flex";
+        if (loginModalStatus) loginModalStatus.textContent = "";
+        setTimeout(() => {
+            if (loginEmailInput) loginEmailInput.focus();
+        }, 30);
+    } else {
+        showClipboardToast("Buka menu login untuk masuk akun");
+    }
+    closeSidebarOnMobile();
+}
+
+function closeLoginModal() {
+    if (!psylockLoginModal) return;
+    psylockLoginModal.hidden = true;
+    psylockLoginModal.style.display = "none";
+    if (loginModalStatus) loginModalStatus.textContent = "";
+}
+
+if (btnCloseLoginModal) {
+    btnCloseLoginModal.addEventListener("click", (e) => {
+        e.stopPropagation();
+        closeLoginModal();
+    });
+}
+
+if (btnContinueGuest) {
+    btnContinueGuest.addEventListener("click", (e) => {
+        e.stopPropagation();
+        closeLoginModal();
+        if (window.PsylockAuth && typeof window.PsylockAuth.continueAsGuest === "function") {
+            window.PsylockAuth.continueAsGuest();
+        }
+    });
+}
+
+if (psylockLoginModal) {
+    psylockLoginModal.addEventListener("click", (e) => {
+        if (e.target === psylockLoginModal) {
+            closeLoginModal();
+        }
+    });
+}
+
+if (btnToggleLoginPassword && loginPasswordInput) {
+    btnToggleLoginPassword.addEventListener("click", (e) => {
+        e.stopPropagation();
+        loginPasswordInput.type = loginPasswordInput.type === "password" ? "text" : "password";
+    });
+}
+
+if (psylockLoginForm) {
+    psylockLoginForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const email = loginEmailInput ? loginEmailInput.value.trim() : "";
+        const password = loginPasswordInput ? loginPasswordInput.value : "";
+
+        if (!email || !password) return;
+
+        if (loginModalStatus) {
+            loginModalStatus.style.color = "#0f766e";
+            loginModalStatus.textContent = "Mengirim kode OTP login...";
+        }
+        if (btnSendOtpLogin) btnSendOtpLogin.disabled = true;
+
+        try {
+            if (window.PsylockAuth && typeof window.PsylockAuth.sendLoginOtp === "function") {
+                await window.PsylockAuth.sendLoginOtp(email, password);
+                if (loginModalStatus) {
+                    loginModalStatus.textContent = "Kode OTP telah dikirim ke email kamu.";
+                }
+            } else {
+                const res = await fetch("/api/auth/send-otp", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email, password })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (loginModalStatus) {
+                    loginModalStatus.textContent = data.message || "Kode OTP telah dikirim ke email kamu.";
+                }
+            }
+        } catch (err) {
+            if (loginModalStatus) {
+                loginModalStatus.style.color = "#dc2626";
+                loginModalStatus.textContent = (err && err.message) || "Gagal mengirim kode OTP.";
+            }
+        } finally {
+            if (btnSendOtpLogin) btnSendOtpLogin.disabled = false;
+        }
+    });
+}
+
+if (btnForgotPassword && loginModalStatus) {
+    btnForgotPassword.addEventListener("click", () => {
+        loginModalStatus.style.color = "#334155";
+        loginModalStatus.textContent = "Silakan gunakan fitur reset password pada halaman masuk akun.";
+    });
+}
+
+if (btnRegisterNow && loginModalStatus) {
+    btnRegisterNow.addEventListener("click", () => {
+        loginModalStatus.style.color = "#334155";
+        loginModalStatus.textContent = "Silakan daftar akun baru untuk menyimpan riwayat percakapan.";
+    });
+}
+
+// --- Tema, Status Login/Tamu, & Profil + Integrasi Supabase (psylock_users) ---
+function isUserLoggedIn() {
+    if (window.PsylockAuth && typeof window.PsylockAuth.getUser === "function") {
+        const u = window.PsylockAuth.getUser();
+        return Boolean(u && u.email);
+    }
+    return false;
+}
+
+function updateAuthMenuButtonUI(loggedIn) {
+    if (!btnLogoutAccount) return;
+    if (loggedIn) {
+        btnLogoutAccount.classList.add("danger");
+        btnLogoutAccount.innerHTML = `
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <polyline points="16 17 21 12 16 7"></polyline>
+                <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
+            <span>Keluar (Logout)</span>
+        `;
+    } else {
+        btnLogoutAccount.classList.remove("danger");
+        btnLogoutAccount.innerHTML = `
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+                <polyline points="10 17 15 12 10 7"></polyline>
+                <line x1="15" y1="12" x2="3" y2="12"></line>
+            </svg>
+            <span>Masuk (Login)</span>
+        `;
+    }
+}
+
+function applySettingsAccessByAuth(loggedIn) {
+    if (tabSettingsPribadi) {
+        tabSettingsPribadi.style.display = loggedIn ? "flex" : "none";
+    }
+    if (panelSettingsPribadi) {
+        panelSettingsPribadi.style.display = loggedIn ? "" : "none";
+    }
+    if (!loggedIn) {
+        switchSettingsTab("tampilan");
+    }
+}
+
+function applyThemeMode(mode, persist = true) {
+    const normalized = mode === "dark" ? "dark" : "light";
+    document.body.classList.toggle("dark-theme", normalized === "dark");
+
+    if (btnThemeLight) {
+        btnThemeLight.classList.toggle("active", normalized === "light");
+    }
+    if (btnThemeDark) {
+        btnThemeDark.classList.toggle("active", normalized === "dark");
+    }
+
+    if (persist) {
+        localStorage.setItem(THEME_STORAGE_KEY, normalized);
+    }
+}
+
+function getLocalProfilePrefs() {
+    try {
+        return JSON.parse(localStorage.getItem(PROFILE_STORAGE_KEY) || "{}") || {};
+    } catch (_) {
+        return {};
+    }
+}
+
+function saveLocalProfilePrefs(prefs) {
+    try {
+        const current = getLocalProfilePrefs();
+        localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify({ ...current, ...prefs }));
+    } catch (_) {}
+}
+
+function setActiveAvatarChoice(url) {
+    selectedAvatarUrl = url || DEFAULT_AVATAR_URL;
+    if (!avatarPresetList) return;
+    avatarPresetList.querySelectorAll(".avatar-choice").forEach((btn) => {
+        const isMatch = (btn.dataset.avatar || "") === selectedAvatarUrl;
+        btn.classList.toggle("active", isMatch);
+    });
+}
+
+async function syncProfileWithSupabaseOrAuth() {
+    const loggedIn = isUserLoggedIn();
+    updateAuthMenuButtonUI(loggedIn);
+    applySettingsAccessByAuth(loggedIn);
+
+    const prefs = getLocalProfilePrefs();
+    let fullName = "";
+    let email = "";
+    let avatar = DEFAULT_AVATAR_URL;
+
+    if (loggedIn && window.PsylockAuth && typeof window.PsylockAuth.getUser === "function") {
+        const authUser = window.PsylockAuth.getUser();
+        email = authUser.email || "";
+        fullName =
+            prefs.fullName ||
+            authUser.full_name ||
+            authUser.user_metadata?.full_name ||
+            authUser.name ||
+            "";
+        avatar =
+            prefs.avatar ||
+            authUser.avatar_url ||
+            authUser.user_metadata?.avatar_url ||
+            DEFAULT_AVATAR_URL;
+
+        if (window.supabaseClient && email) {
+            try {
+                const { data, error } = await window.supabaseClient
+                    .from("psylock_users")
+                    .select("full_name, email")
+                    .eq("email", email)
+                    .maybeSingle();
+
+                if (!error && data && data.full_name && !prefs.fullName) {
+                    fullName = data.full_name;
+                }
+            } catch (err) {
+                console.warn("Gagal mengambil profil dari psylock_users:", err);
+            }
+        }
+    }
+
+    const displayName = loggedIn
+        ? (fullName || (email ? email.split("@")[0] : "Pengguna")).trim()
+        : (prefs.guestName || "arka").trim();
+    const displaySubtext = loggedIn ? email.trim() : "Mode Tamu";
+    const displayAvatar = loggedIn ? avatar : (prefs.guestAvatar || DEFAULT_AVATAR_URL);
+
+    if (sidebarUserName) sidebarUserName.textContent = displayName;
+    if (sidebarUserEmail) sidebarUserEmail.textContent = displaySubtext;
+    if (sidebarUserAvatar) sidebarUserAvatar.src = displayAvatar;
+
+    if (inputFullName) inputFullName.value = loggedIn ? displayName : "";
+    if (inputUserEmail) inputUserEmail.value = loggedIn ? email : "";
+    setActiveAvatarChoice(displayAvatar);
+}
+
+function closeUserMoreMenu() {
+    if (!userMoreMenu) return;
+    userMoreMenu.hidden = true;
+    userMoreMenu.style.display = "none";
+    if (btnUserMoreMenu) btnUserMoreMenu.setAttribute("aria-expanded", "false");
+}
+
+function toggleUserMoreMenu() {
+    if (!userMoreMenu) return;
+    const isCurrentlyOpen = !userMoreMenu.hidden && userMoreMenu.style.display !== "none";
+    if (isCurrentlyOpen) {
+        closeUserMoreMenu();
+    } else {
+        updateAuthMenuButtonUI(isUserLoggedIn());
+        userMoreMenu.hidden = false;
+        userMoreMenu.style.display = "flex";
+        if (btnUserMoreMenu) btnUserMoreMenu.setAttribute("aria-expanded", "true");
+    }
+}
+
+function switchSettingsTab(tabName) {
+    const loggedIn = isUserLoggedIn();
+    const isPribadi = loggedIn && tabName === "pribadi";
+
+    if (tabSettingsPribadi) {
+        tabSettingsPribadi.style.display = loggedIn ? "flex" : "none";
+        tabSettingsPribadi.classList.toggle("active", isPribadi);
+    }
+    if (tabSettingsTampilan) {
+        tabSettingsTampilan.classList.toggle("active", !isPribadi);
+    }
+    if (panelSettingsPribadi) {
+        panelSettingsPribadi.style.display = loggedIn ? "" : "none";
+        panelSettingsPribadi.classList.toggle("active", isPribadi);
+    }
+    if (panelSettingsTampilan) {
+        panelSettingsTampilan.classList.toggle("active", !isPribadi);
+    }
+}
+
+async function openSettingsModal(initialTab = "pribadi") {
+    closeUserMoreMenu();
+    closeLoginModal();
+    await syncProfileWithSupabaseOrAuth();
+    if (pribadiSavedFeedback) pribadiSavedFeedback.textContent = "";
+
+    const targetTab = isUserLoggedIn() ? initialTab : "tampilan";
+    switchSettingsTab(targetTab);
+
+    if (psylockSettingsModal) {
+        psylockSettingsModal.hidden = false;
+        psylockSettingsModal.style.display = "flex";
+    }
+    closeSidebarOnMobile();
+}
+
+function closeSettingsModal() {
+    if (psylockSettingsModal) {
+        psylockSettingsModal.hidden = true;
+        psylockSettingsModal.style.display = "none";
+    }
+}
+
+if (btnUserMoreMenu) {
+    btnUserMoreMenu.addEventListener("click", (e) => {
+        e.stopPropagation();
+        toggleUserMoreMenu();
+    });
+}
+
+document.addEventListener("click", (e) => {
+    if (userMoreMenu && !userMoreMenu.hidden && userMoreMenu.style.display !== "none") {
+        const insideMenu = userMoreMenu.contains(e.target);
+        const insideBtn = btnUserMoreMenu && btnUserMoreMenu.contains(e.target);
+        if (!insideMenu && !insideBtn) {
+            closeUserMoreMenu();
+        }
+    }
+});
+
+if (btnOpenSettingsModal) {
+    btnOpenSettingsModal.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openSettingsModal(isUserLoggedIn() ? "pribadi" : "tampilan");
+    });
+}
+
+if (btnLogoutAccount) {
+    btnLogoutAccount.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        closeUserMoreMenu();
+
+        if (!isUserLoggedIn()) {
+            openLoginModal();
+            return;
+        }
+
+        try {
+            if (window.PsylockAuth && typeof window.PsylockAuth.logout === "function") {
+                await window.PsylockAuth.logout();
+            } else if (window.supabaseClient && window.supabaseClient.auth) {
+                await window.supabaseClient.auth.signOut();
+            }
+        } catch (err) {
+            console.warn("Gagal logout:", err);
+        }
+
+        localStorage.removeItem(PROFILE_STORAGE_KEY);
+        await syncProfileWithSupabaseOrAuth();
+        await syncChatsFromAuth({ user: null });
+        showClipboardToast("Anda telah keluar");
+    });
+}
+
+if (btnCloseSettingsModal) {
+    btnCloseSettingsModal.addEventListener("click", closeSettingsModal);
+}
+
+if (psylockSettingsModal) {
+    psylockSettingsModal.addEventListener("click", (e) => {
+        if (e.target === psylockSettingsModal) {
+            closeSettingsModal();
+        }
+    });
+}
+
+if (tabSettingsPribadi) {
+    tabSettingsPribadi.addEventListener("click", () => {
+        if (!isUserLoggedIn()) return;
+        switchSettingsTab("pribadi");
+    });
+}
+
+if (tabSettingsTampilan) {
+    tabSettingsTampilan.addEventListener("click", () => switchSettingsTab("tampilan"));
+}
+
+if (avatarPresetList) {
+    avatarPresetList.querySelectorAll(".avatar-choice").forEach((btn) => {
+        btn.addEventListener("click", () => {
+            setActiveAvatarChoice(btn.dataset.avatar || DEFAULT_AVATAR_URL);
+        });
+    });
+}
+
+if (btnSavePribadi) {
+    btnSavePribadi.addEventListener("click", async () => {
+        if (!isUserLoggedIn()) {
+            switchSettingsTab("tampilan");
+            return;
+        }
+
+        const newName = (inputFullName ? inputFullName.value : "").trim();
+        const emailVal = (inputUserEmail ? inputUserEmail.value : "").trim();
+        const avatarVal = selectedAvatarUrl || DEFAULT_AVATAR_URL;
+
+        if (!newName) {
+            if (pribadiSavedFeedback) {
+                pribadiSavedFeedback.style.color = "#dc2626";
+                pribadiSavedFeedback.textContent = "Nama lengkap tidak boleh kosong.";
+            }
+            return;
+        }
+
+        if (window.supabaseClient && emailVal) {
+            try {
+                const { error } = await window.supabaseClient
+                    .from("psylock_users")
+                    .update({ full_name: newName })
+                    .eq("email", emailVal);
+
+                if (error) {
+                    console.warn("Update ke psylock_users gagal:", error.message);
+                }
+            } catch (err) {
+                console.warn("Kesalahan jaringan saat update psylock_users:", err);
+            }
+        }
+
+        saveLocalProfilePrefs({
+            fullName: newName,
+            email: emailVal,
+            avatar: avatarVal
+        });
+
+        if (sidebarUserName) sidebarUserName.textContent = newName;
+        if (sidebarUserAvatar) sidebarUserAvatar.src = avatarVal;
+
+        if (pribadiSavedFeedback) {
+            pribadiSavedFeedback.style.color = "#16a34a";
+            pribadiSavedFeedback.textContent = "Perubahan disimpan!";
+        }
+        showClipboardToast("Profil diperbarui");
+    });
+}
+
+if (btnThemeLight) {
+    btnThemeLight.addEventListener("click", () => applyThemeMode("light", true));
+}
+
+if (btnThemeDark) {
+    btnThemeDark.addEventListener("click", () => applyThemeMode("dark", true));
+}
 
 function ensureClipboardToast() {
     let toast = document.getElementById("clipboardToastNotice");
@@ -749,6 +1257,7 @@ function isTouchOrMobileDevice() {
 }
 
 function closeSidebar() {
+    closeUserMoreMenu();
     if (sidebar) sidebar.classList.add('closed');
     if (sidebarSearchWrapper) sidebarSearchWrapper.style.display = 'none';
 }
@@ -1087,10 +1596,15 @@ async function syncChatsFromAuth(eventDetail = null) {
 }
 
 window.addEventListener("psylock:auth-changed", (e) => {
+    if (isUserLoggedIn()) {
+        closeLoginModal();
+    }
+    syncProfileWithSupabaseOrAuth();
     syncChatsFromAuth(e.detail || null);
 });
 
 window.addEventListener("psylock:guest-mode", () => {
+    syncProfileWithSupabaseOrAuth();
     syncChatsFromAuth({ user: null });
 });
 
@@ -2742,6 +3256,18 @@ if (btnZoomDeletePhoto) {
 
 document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
+        if (psylockLoginModal && !psylockLoginModal.hidden && psylockLoginModal.style.display !== "none") {
+            closeLoginModal();
+            return;
+        }
+        if (psylockSettingsModal && !psylockSettingsModal.hidden && psylockSettingsModal.style.display !== "none") {
+            closeSettingsModal();
+            return;
+        }
+        if (userMoreMenu && !userMoreMenu.hidden && userMoreMenu.style.display !== "none") {
+            closeUserMoreMenu();
+            return;
+        }
         if (contactPopupOverlay && contactPopupOverlay.style.display === "flex") {
             closeContactPopup();
             return;
@@ -2941,6 +3467,14 @@ if (btnCloseEditor) {
 }
 
 window.addEventListener('DOMContentLoaded', async () => {
+    closeUserMoreMenu();
+    closeLoginModal();
+    closeSettingsModal();
+
+    const savedTheme = localStorage.getItem(THEME_STORAGE_KEY) || "light";
+    applyThemeMode(savedTheme, false);
+    await syncProfileWithSupabaseOrAuth();
+
     openPdfDb();
     ensureFileCardStyles();
     ensurePromptDisclaimer();

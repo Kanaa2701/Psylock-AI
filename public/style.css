@@ -201,6 +201,768 @@ body {
   background: #faf8f5;
 }
 
+/* Footer Profil & Menu Titik Tiga di Sidebar */
+.sidebar-footer-profile {
+  position: relative;
+  padding: 10px 12px 14px 12px;
+  border-top: 1px solid #eae5de;
+  background: #faf8f5;
+  flex-shrink: 0;
+}
+
+.sidebar.closed .sidebar-user-info,
+.sidebar.closed .btn-user-more {
+  display: none;
+}
+
+.sidebar.closed .sidebar-user-card {
+  justify-content: center;
+  padding: 4px;
+}
+
+.sidebar-user-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 12px;
+  transition: background 0.2s ease;
+}
+
+.sidebar-user-card:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.sidebar-user-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  flex-shrink: 0;
+}
+
+.sidebar-user-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.sidebar-user-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-user-email {
+  font-size: 11.5px;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.btn-user-more {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: #475569;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.btn-user-more:hover {
+  background: rgba(0, 0, 0, 0.07);
+  color: #0f172a;
+}
+
+.user-more-menu {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: calc(100% - 4px);
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 6px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
+  z-index: 1200;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.user-more-menu[hidden] {
+  display: none !important;
+}
+
+.sidebar.closed .user-more-menu {
+  left: 10px;
+  right: auto;
+  width: 185px;
+}
+
+.user-more-item {
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 10px 12px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #1e293b;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease;
+}
+
+.user-more-item:hover {
+  background: #f1f5f9;
+}
+
+.user-more-item.danger {
+  color: #dc2626;
+}
+
+.user-more-item.danger:hover {
+  background: rgba(220, 38, 38, 0.08);
+}
+
+/* Modal Pengaturan (Pribadi & Tampilan) */
+.psylock-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.52);
+  backdrop-filter: blur(3px);
+  z-index: 2200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.psylock-modal-overlay[hidden] {
+  display: none !important;
+}
+
+.psylock-settings-dialog {
+  width: 720px;
+  max-width: 95vw;
+  min-height: 400px;
+  max-height: 85vh;
+  background: #ffffff;
+  color: #0f172a;
+  border-radius: 18px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.22);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.psylock-settings-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.psylock-settings-header h2 {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.psylock-modal-close {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.psylock-modal-close:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.psylock-settings-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.psylock-settings-nav {
+  width: 210px;
+  border-right: 1px solid #e2e8f0;
+  padding: 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.psylock-settings-tab {
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 10px 12px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #334155;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.psylock-settings-tab:hover {
+  background: #f1f5f9;
+}
+
+.psylock-settings-tab.active {
+  background: #e2e8f0;
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.psylock-settings-content {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 20px 24px;
+}
+
+.settings-panel {
+  display: none;
+}
+
+.settings-panel.active {
+  display: block;
+}
+
+.settings-panel h3 {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 14px;
+}
+
+.settings-subtitle {
+  font-size: 13px;
+  color: #64748b;
+  margin-top: -8px;
+  margin-bottom: 16px;
+}
+
+.settings-field {
+  margin-bottom: 16px;
+}
+
+.settings-field label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 8px;
+}
+
+.avatar-preset-list {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.avatar-choice {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  padding: 2px;
+  background: #f8fafc;
+  cursor: pointer;
+  overflow: hidden;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.avatar-choice img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+}
+
+.avatar-choice.active {
+  border-color: #111827;
+  transform: scale(1.06);
+}
+
+.settings-input {
+  width: 100%;
+  max-width: 420px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 14px;
+  outline: none;
+}
+
+.settings-input:focus {
+  border-color: #3b82f6;
+}
+
+.settings-input.readonly {
+  background: #f8fafc;
+  color: #64748b;
+  cursor: not-allowed;
+}
+
+.settings-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.btn-save-settings {
+  background: #1e293b;
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.btn-save-settings:hover {
+  background: #0f172a;
+}
+
+.settings-saved-feedback {
+  font-size: 13px;
+  color: #16a34a;
+  font-weight: 500;
+}
+
+.theme-option-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.theme-option-card {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.theme-option-card:hover {
+  background: #f8fafc;
+}
+
+.theme-option-card.active {
+  border-color: #111827;
+  background: #f1f5f9;
+}
+
+.theme-option-icon {
+  font-size: 20px;
+}
+
+.theme-option-title {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.theme-option-desc {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.35;
+}
+
+/* Modal Pop-up Login Psylock AI (Seperti Foto Kedua) */
+.psylock-login-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.35);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 2400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.psylock-login-overlay[hidden] {
+  display: none !important;
+}
+
+.psylock-login-card {
+  position: relative;
+  width: 440px;
+  max-width: 94vw;
+  background: rgba(244, 246, 249, 0.96);
+  color: #1e293b;
+  border-radius: 22px;
+  padding: 28px 28px 24px 28px;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.24);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+}
+
+.psylock-login-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.psylock-login-close:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: #0f172a;
+}
+
+.psylock-login-title {
+  text-align: center;
+  font-size: 24px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 6px;
+}
+
+.psylock-login-subtitle {
+  text-align: center;
+  font-size: 13px;
+  color: #64748b;
+  margin-bottom: 20px;
+}
+
+.psylock-login-group {
+  margin-bottom: 14px;
+}
+
+.psylock-login-group label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 6px;
+}
+
+.psylock-login-input {
+  width: 100%;
+  height: 44px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #1e293b;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.psylock-login-input:focus {
+  border-color: #334155;
+  box-shadow: 0 0 0 3px rgba(51, 65, 85, 0.1);
+}
+
+.psylock-password-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.psylock-password-wrap .psylock-login-input {
+  padding-right: 42px;
+}
+
+.psylock-toggle-pass {
+  position: absolute;
+  right: 10px;
+  background: transparent;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  padding: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.psylock-toggle-pass:hover {
+  color: #1e293b;
+}
+
+.psylock-forgot-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
+.psylock-link-btn {
+  background: transparent;
+  border: none;
+  color: #4f46e5;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: none;
+}
+
+.psylock-link-btn:hover {
+  text-decoration: underline;
+}
+
+.psylock-btn-otp {
+  width: 100%;
+  height: 44px;
+  margin-top: 6px;
+  border-radius: 10px;
+  border: none;
+  background: #2b3144;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.psylock-btn-otp:hover {
+  background: #1e2436;
+}
+
+.psylock-btn-otp:active {
+  transform: scale(0.99);
+}
+
+.psylock-btn-guest {
+  width: 100%;
+  height: 42px;
+  margin-top: 10px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: rgba(255, 255, 255, 0.75);
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.psylock-btn-guest:hover {
+  background: #ffffff;
+  color: #334155;
+}
+
+.psylock-login-footer {
+  margin-top: 16px;
+  text-align: center;
+  font-size: 12.5px;
+  color: #64748b;
+}
+
+.psylock-login-status {
+  margin-top: 10px;
+  font-size: 12.5px;
+  text-align: center;
+  color: #0f766e;
+  min-height: 18px;
+}
+
+/* Mode Gelap (body.dark-theme) */
+body.dark-theme,
+body.dark-theme .app-layout,
+body.dark-theme .container,
+body.dark-theme .konten,
+body.dark-theme .sidebar,
+body.dark-theme .sidebar-footer-profile,
+body.dark-theme .sidebar-mini-actions,
+body.dark-theme .sidebar-header-gemini,
+body.dark-theme .sidebar-top-menus,
+body.dark-theme .sidebar-history-label,
+body.dark-theme .sidebar-search,
+body.dark-theme .sidebar-history {
+  background-color: #121212 !important;
+  background: #121212 !important;
+  color: #f1f5f9;
+}
+
+body.dark-theme .sidebar {
+  border-right-color: #27272a;
+}
+
+body.dark-theme .sidebar-footer-profile {
+  border-top-color: #27272a;
+}
+
+body.dark-theme .sidebar-brand,
+body.dark-theme .sidebar-user-name,
+body.dark-theme .collection-title {
+  color: #f8fafc;
+}
+
+body.dark-theme .sidebar-menu-item,
+body.dark-theme .history-item,
+body.dark-theme .btn-user-more,
+body.dark-theme .btn-toggle-sidebar {
+  color: #e2e8f0;
+}
+
+body.dark-theme .sidebar-menu-item:hover,
+body.dark-theme .history-item-wrapper:hover,
+body.dark-theme .btn-user-more:hover,
+body.dark-theme .btn-toggle-sidebar:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+body.dark-theme .sidebar-menu-item.active,
+body.dark-theme .history-item-wrapper.active {
+  background: rgba(255, 255, 255, 0.11);
+  color: #ffffff;
+}
+
+body.dark-theme .sidebar-search input,
+body.dark-theme .prompt,
+body.dark-theme .btn-mini-icon {
+  background: #1e1e1e;
+  border-color: #334155;
+  color: #f8fafc;
+}
+
+body.dark-theme .teks {
+  color: #f8fafc;
+}
+
+body.dark-theme .user-more-menu,
+body.dark-theme .psylock-settings-dialog,
+body.dark-theme .psylock-login-card {
+  background: #1c1d21;
+  border-color: #2e3038;
+  color: #f1f5f9;
+}
+
+body.dark-theme .psylock-login-title {
+  color: #f8fafc;
+}
+
+body.dark-theme .psylock-login-group label {
+  color: #cbd5e1;
+}
+
+body.dark-theme .psylock-login-input {
+  background: #25272d;
+  border-color: #3f424b;
+  color: #f8fafc;
+}
+
+body.dark-theme .psylock-btn-guest {
+  background: #25272d;
+  border-color: #3f424b;
+  color: #cbd5e1;
+}
+
+body.dark-theme .psylock-settings-header,
+body.dark-theme .psylock-settings-nav {
+  border-color: #2e3038;
+}
+
+body.dark-theme .psylock-settings-tab {
+  color: #cbd5e1;
+}
+
+body.dark-theme .psylock-settings-tab:hover,
+body.dark-theme .user-more-item:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+body.dark-theme .psylock-settings-tab.active {
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+}
+
+body.dark-theme .user-more-item {
+  color: #e2e8f0;
+}
+
+body.dark-theme .settings-field label,
+body.dark-theme .settings-panel h3 {
+  color: #f1f5f9;
+}
+
+body.dark-theme .settings-input {
+  background: #25272d;
+  border-color: #3f424b;
+  color: #f8fafc;
+}
+
+body.dark-theme .settings-input.readonly {
+  background: #18191d;
+  color: #94a3b8;
+}
+
+body.dark-theme .theme-option-card {
+  background: #25272d;
+  border-color: #3f424b;
+  color: #f8fafc;
+}
+
+body.dark-theme .theme-option-card.active {
+  border-color: #ffffff;
+  background: #32353d;
+}
+
 .container {
   flex: 1;
   height: 100%;
@@ -1487,6 +2249,27 @@ body {
 
   ::-webkit-scrollbar {
     width: 4px;
+  }
+}
+
+@media screen and (max-width: 640px) {
+  .psylock-settings-body {
+    flex-direction: column;
+  }
+
+  .psylock-settings-nav {
+    width: 100%;
+    flex-direction: row;
+    border-right: none;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  body.dark-theme .psylock-settings-nav {
+    border-bottom-color: #2e3038;
+  }
+
+  .theme-option-grid {
+    grid-template-columns: 1fr;
   }
 }
 

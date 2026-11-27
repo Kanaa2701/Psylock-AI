@@ -100,10 +100,40 @@
 
             <div class="sidebar-history" id="sidebarHistory"></div>
 
-            <div class="sidebar-account-footer" style="padding: 10px 12px; border-top: 1px solid rgba(148, 163, 184, 0.2);">
-                <button type="button" id="psylockAccountBtn" class="psylock-user-pill" style="width: 100%; justify-content: center;">
-                    Mode Tamu • Masuk
-                </button>
+            <div class="sidebar-footer-profile" id="sidebarFooterProfile">
+                <div class="user-more-menu" id="userMoreMenu" hidden>
+                    <button type="button" class="user-more-item" id="btnOpenSettingsModal">
+                        <span>⚙️</span>
+                        <span>Pengaturan</span>
+                    </button>
+                    <button type="button" class="user-more-item danger" id="btnLogoutAccount">
+                        <span>🚪</span>
+                        <span>Keluar (Logout)</span>
+                    </button>
+                </div>
+
+                <div class="sidebar-user-card">
+                    <img
+                        src="https://api.dicebear.com/9.x/bottts/svg?seed=Psylock1"
+                        alt="Avatar Pengguna"
+                        class="sidebar-user-avatar"
+                        id="sidebarUserAvatar"
+                    />
+                    <div class="sidebar-user-info">
+                        <div class="sidebar-user-name" id="sidebarUserName">Pengguna</div>
+                        <div class="sidebar-user-email" id="sidebarUserEmail">nama@gmail.com</div>
+                    </div>
+                    <button
+                        type="button"
+                        class="btn-user-more"
+                        id="btnUserMoreMenu"
+                        aria-label="Opsi akun"
+                        aria-expanded="false"
+                        title="Opsi akun"
+                    >
+                        ⋮
+                    </button>
+                </div>
             </div>
         </aside>
 
@@ -205,6 +235,167 @@
                 <div style="display: flex; gap: 10px; justify-content: center;">
                     <button id="btnCancelDelete" style="flex: 1; padding: 10px; border: 1px solid #cbd5e1; background: white; border-radius: 6px; cursor: pointer; font-weight: 500;">Batal</button>
                     <button id="btnConfirmDelete" style="flex: 1; padding: 10px; border: none; background: #0f172a; color: white; border-radius: 6px; cursor: pointer; font-weight: 500;">Hapus</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Pop-up Login Psylock AI -->
+    <div id="psylockLoginModal" class="psylock-login-overlay" hidden>
+        <div class="psylock-login-card" role="dialog" aria-modal="true" aria-labelledby="loginModalTitle">
+            <button type="button" id="btnCloseLoginModal" class="psylock-login-close" aria-label="Tutup">&times;</button>
+
+            <h2 id="loginModalTitle" class="psylock-login-title">Psylock AI</h2>
+            <p class="psylock-login-subtitle">Masuk untuk melanjutkan ke Psylock AI</p>
+
+            <form id="psylockLoginForm">
+                <div class="psylock-login-group">
+                    <label for="loginEmailInput">Email</label>
+                    <input
+                        type="email"
+                        id="loginEmailInput"
+                        class="psylock-login-input"
+                        placeholder="nama@gmail.com"
+                        required
+                    />
+                </div>
+
+                <div class="psylock-login-group">
+                    <label for="loginPasswordInput">Password</label>
+                    <div class="psylock-password-wrap">
+                        <input
+                            type="password"
+                            id="loginPasswordInput"
+                            class="psylock-login-input"
+                            placeholder="••••••••"
+                            required
+                        />
+                        <button
+                            type="button"
+                            id="btnToggleLoginPassword"
+                            class="psylock-toggle-pass"
+                            aria-label="Tampilkan atau sembunyikan password"
+                        >
+                            👁
+                        </button>
+                    </div>
+                    <div class="psylock-forgot-row">
+                        <button type="button" id="btnForgotPassword" class="psylock-link-btn">Lupa Password?</button>
+                    </div>
+                </div>
+
+                <button type="submit" id="btnSendOtpLogin" class="psylock-btn-otp">Kirim Kode OTP Login</button>
+                <button type="button" id="btnContinueGuest" class="psylock-btn-guest">Lewati (Lanjut sebagai Tamu)</button>
+
+                <div id="loginModalStatus" class="psylock-login-status" aria-live="polite"></div>
+
+                <div class="psylock-login-footer">
+                    Belum punya akun?
+                    <button type="button" id="btnRegisterNow" class="psylock-link-btn">Daftar sekarang</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Pengaturan (Pribadi & Tampilan) -->
+    <div class="psylock-modal-overlay" id="psylockSettingsModal" hidden>
+        <div class="psylock-settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
+            <div class="psylock-settings-header">
+                <h2 id="settingsModalTitle">Pengaturan</h2>
+                <button type="button" class="psylock-modal-close" id="btnCloseSettingsModal" aria-label="Tutup">×</button>
+            </div>
+
+            <div class="psylock-settings-body">
+                <nav class="psylock-settings-nav">
+                    <button
+                        type="button"
+                        class="psylock-settings-tab active"
+                        data-settings-tab="pribadi"
+                        id="tabSettingsPribadi"
+                    >
+                        <span>👤</span>
+                        <span>Pribadi</span>
+                    </button>
+                    <button
+                        type="button"
+                        class="psylock-settings-tab"
+                        data-settings-tab="tampilan"
+                        id="tabSettingsTampilan"
+                    >
+                        <span>🎨</span>
+                        <span>Tampilan</span>
+                    </button>
+                </nav>
+
+                <div class="psylock-settings-content">
+                    <section class="settings-panel active" id="panelSettingsPribadi">
+                        <h3>Profil</h3>
+
+                        <div class="settings-field">
+                            <label>Avatar</label>
+                            <div class="avatar-preset-list" id="avatarPresetList">
+                                <button type="button" class="avatar-choice active" data-avatar="https://api.dicebear.com/9.x/bottts/svg?seed=Psylock1" title="Avatar 1">
+                                    <img src="https://api.dicebear.com/9.x/bottts/svg?seed=Psylock1" alt="Avatar 1" />
+                                </button>
+                                <button type="button" class="avatar-choice" data-avatar="https://api.dicebear.com/9.x/bottts/svg?seed=Psylock2" title="Avatar 2">
+                                    <img src="https://api.dicebear.com/9.x/bottts/svg?seed=Psylock2" alt="Avatar 2" />
+                                </button>
+                                <button type="button" class="avatar-choice" data-avatar="https://api.dicebear.com/9.x/bottts/svg?seed=Psylock3" title="Avatar 3">
+                                    <img src="https://api.dicebear.com/9.x/bottts/svg?seed=Psylock3" alt="Avatar 3" />
+                                </button>
+                                <button type="button" class="avatar-choice" data-avatar="https://api.dicebear.com/9.x/bottts/svg?seed=Psylock4" title="Avatar 4">
+                                    <img src="https://api.dicebear.com/9.x/bottts/svg?seed=Psylock4" alt="Avatar 4" />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="settings-field">
+                            <label for="inputFullName">Nama Lengkap</label>
+                            <input
+                                type="text"
+                                id="inputFullName"
+                                class="settings-input"
+                                placeholder="Masukkan nama lengkap"
+                            />
+                        </div>
+
+                        <div class="settings-field">
+                            <label for="inputUserEmail">Email</label>
+                            <input
+                                type="email"
+                                id="inputUserEmail"
+                                class="settings-input readonly"
+                                placeholder="nama@gmail.com"
+                                readonly
+                            />
+                        </div>
+
+                        <div class="settings-actions">
+                            <button type="button" class="btn-save-settings" id="btnSavePribadi">
+                                Simpan Perubahan
+                            </button>
+                            <span class="settings-saved-feedback" id="pribadiSavedFeedback"></span>
+                        </div>
+                    </section>
+
+                    <section class="settings-panel" id="panelSettingsTampilan">
+                        <h3>Tampilan</h3>
+                        <p class="settings-subtitle">Pilih tampilan tema untuk Psylock AI.</p>
+
+                        <div class="theme-option-grid">
+                            <button type="button" class="theme-option-card active" data-theme-choice="light" id="btnThemeLight">
+                                <span class="theme-option-icon">☀️</span>
+                                <span class="theme-option-title">Terang</span>
+                                <span class="theme-option-desc">Tampilan cerah hangat seperti bawaan</span>
+                            </button>
+
+                            <button type="button" class="theme-option-card" data-theme-choice="dark" id="btnThemeDark">
+                                <span class="theme-option-icon">🌙</span>
+                                <span class="theme-option-title">Gelap</span>
+                                <span class="theme-option-desc">Nyaman di mata untuk ruangan minim cahaya</span>
+                            </button>
+                        </div>
+                    </section>
                 </div>
             </div>
         </div>
