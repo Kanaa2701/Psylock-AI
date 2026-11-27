@@ -219,6 +219,7 @@ body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 20px;
   display: flex;
   flex-direction: column;
@@ -506,6 +507,7 @@ body {
   border-bottom-left-radius: 16px;
   position: relative;
   white-space: normal;
+  overflow-x: hidden;
   overflow-wrap: anywhere;
   word-break: break-word;
   box-sizing: border-box;
@@ -548,11 +550,12 @@ body {
 
 .pesan-wrapper.bot-wrapper {
   position: relative;
-  margin-left: 32px;
+  margin-left: 42px;
   align-self: flex-start;
   width: 560px;
-  max-width: calc(100% - 32px);
+  max-width: calc(100% - 42px);
   min-width: 0;
+  overflow: visible;
 }
 
 .pesan-wrapper.user-wrapper {
@@ -562,15 +565,16 @@ body {
 
 .ai-avatar {
   position: absolute;
-  left: -32px;
+  left: -42px;
   top: 0;
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   object-fit: cover;
   border: 1px solid #cbd5e1;
   background: #ffffff;
   z-index: 2;
+  display: block;
 }
 
 .pesan img {
@@ -1365,15 +1369,16 @@ body {
   }
 
   .pesan-wrapper.bot-wrapper {
-    margin-left: 30px;
+    margin-left: 38px;
     width: 560px;
-    max-width: calc(100% - 30px);
+    max-width: calc(100% - 38px);
+    overflow: visible;
   }
 
   .ai-avatar {
-    width: 24px;
-    height: 24px;
-    left: -30px;
+    width: 26px;
+    height: 26px;
+    left: -38px;
   }
 
   .prompt {
@@ -1576,15 +1581,16 @@ body {
   }
 
   .pesan-wrapper.bot-wrapper {
-    margin-left: 27px;
+    margin-left: 35px;
     width: 560px;
-    max-width: calc(100% - 27px);
+    max-width: calc(100% - 35px);
+    overflow: visible;
   }
 
   .ai-avatar {
-    width: 22px;
-    height: 22px;
-    left: -27px;
+    width: 24px;
+    height: 24px;
+    left: -35px;
   }
 
   .pesan.bot pre {
@@ -1730,7 +1736,9 @@ body {
 
   .pesan-wrapper.bot-wrapper {
     width: 560px;
-    max-width: calc(100% - 27px);
+    max-width: calc(100% - 35px);
+    margin-left: 35px;
+    overflow: visible;
   }
 
   .prompt {
