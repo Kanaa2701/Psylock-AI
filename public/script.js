@@ -174,6 +174,37 @@ function ensureFileCardStyles() {
     const style = document.createElement("style");
     style.id = "psylockFileCardStyle";
     style.textContent = `
+        #konten .pesan-wrapper.bot-wrapper {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            width: 100%;
+            max-width: 100%;
+            min-width: 0;
+            box-sizing: border-box;
+        }
+        #konten .pesan-wrapper.bot-wrapper .ai-avatar {
+            flex-shrink: 0;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+        #konten .pesan.bot {
+            display: block;
+            width: fit-content;
+            max-width: min(78%, 680px);
+            min-width: 0;
+            box-sizing: border-box;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+            line-height: 1.55;
+        }
+        @media (max-width: 768px) {
+            #konten .pesan.bot {
+                max-width: calc(100% - 46px);
+            }
+        }
         .pesan.user .user-file-badge {
             display: inline-flex;
             align-items: center;
@@ -966,19 +997,34 @@ async function syncChatsFromAuth(eventDetail = null) {
         const user = typeof window.PsylockAuth.getUser === "function" ? window.PsylockAuth.getUser() : null;
         const isLogoutTransition = Boolean(eventDetail && eventDetail.user === null);
 
+        const prevSessionId = currentSessionId;
+        const prevSessionObj = getSessionById(prevSessionId);
+        const wasOnFreshNewChat = !isCollectionView && isFreshEmptySession(prevSessionObj);
+        const savedDraftText = prompt && !isCollectionView ? prompt.value : (prevSessionObj?.draft || '');
+
         isApplyingRemoteChats = true;
 
         if (user && user.email) {
             const loaded = await window.PsylockAuth.loadChats();
             const normalized = normalizeRemoteChats(loaded);
 
-            if (normalized.length > 0) {
+            if (wasOnFreshNewChat) {
+                const keepNewSession = createEmptySession(prevSessionObj?.id || Date.now());
+                keepNewSession.draft = savedDraftText;
+                chatSessions = [keepNewSession, ...normalized];
+                currentSessionId = keepNewSession.id;
+            } else if (normalized.length > 0) {
                 chatSessions = normalized;
+                const matchedPrev = getSessionById(prevSessionId);
+                currentSessionId = matchedPrev ? matchedPrev.id : chatSessions[0].id;
             } else {
                 chatSessions = [createEmptySession(Date.now())];
+                currentSessionId = chatSessions[0].id;
             }
-            currentSessionId = chatSessions[0].id;
-            chatHistory = Array.isArray(chatSessions[0].history) ? chatSessions[0].history : [];
+
+            chatHistory = Array.isArray(getSessionById(currentSessionId)?.history)
+                ? getSessionById(currentSessionId).history
+                : [];
             localStorage.setItem('psylock_sessions', JSON.stringify(chatSessions));
             localStorage.setItem('psylock_current_session', String(currentSessionId));
         } else {
@@ -992,10 +1038,19 @@ async function syncChatsFromAuth(eventDetail = null) {
                 chatHistory = [];
                 isCollectionView = false;
                 setPromptVisible(true);
+            } else if (wasOnFreshNewChat) {
+                const keepGuestNew = createEmptySession(prevSessionObj?.id || Date.now());
+                keepGuestNew.draft = savedDraftText;
+                chatSessions = [keepGuestNew, ...normalizedGuest];
+                currentSessionId = keepGuestNew.id;
+                chatHistory = [];
             } else if (normalizedGuest.length > 0) {
                 chatSessions = normalizedGuest;
-                currentSessionId = chatSessions[0].id;
-                chatHistory = Array.isArray(chatSessions[0].history) ? chatSessions[0].history : [];
+                const matchedGuest = getSessionById(prevSessionId);
+                currentSessionId = matchedGuest ? matchedGuest.id : chatSessions[0].id;
+                chatHistory = Array.isArray(getSessionById(currentSessionId)?.history)
+                    ? getSessionById(currentSessionId).history
+                    : [];
             } else {
                 const freshGuestSession = createEmptySession(Date.now());
                 chatSessions = [freshGuestSession];
@@ -2059,6 +2114,7 @@ function displayMessageToDOM(pengirim, chat, saveToSession = true, targetSession
     let containerEl;
 
     if (pengirim === "bot") {
+        ensureFileCardStyles();
         containerEl = document.createElement("div");
         containerEl.classList.add("pesan-wrapper", "bot-wrapper");
 
@@ -2899,19 +2955,20 @@ window.addEventListener('DOMContentLoaded', async () => {
         ? window.PsylockAuth.getUser()
         : null;
 
+    const shouldStayInCollection = localStorage.getItem('psylock_is_collection_view') === '1';
+    if (shouldStayInCollection) {
+        isCollectionView = true;
+        renderCollectionContent();
+        setPromptVisible(false);
+        syncSidebarActiveStates();
+        renderHistory(searchChatInput ? searchChatInput.value : '');
+        syncSendButtonForCurrentSession();
+    } else {
+        switchSession(currentSessionId, true);
+        renderHistory(searchChatInput ? searchChatInput.value : '');
+    }
+
     if (currentUser && currentUser.email) {
-        const shouldStayInCollection = localStorage.getItem('psylock_is_collection_view') === '1';
-        if (shouldStayInCollection) {
-            isCollectionView = true;
-            renderCollectionContent();
-            setPromptVisible(false);
-            syncSidebarActiveStates();
-            renderHistory(searchChatInput ? searchChatInput.value : '');
-            syncSendButtonForCurrentSession();
-        } else {
-            switchSession(currentSessionId, true);
-            renderHistory(searchChatInput ? searchChatInput.value : '');
-        }
         await syncChatsFromAuth({ user: currentUser });
     } else {
         isCollectionView = false;
